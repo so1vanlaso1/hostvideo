@@ -1,5 +1,15 @@
 # Local validation — 3 October 2026
 
+## General dance workflow — 4 October 2026
+
+**40 Python tests passed:** 26 client/planning/media tests and 14 integration checks against the pinned ComfyUI checkout. The JavaScript upload-control checks, syntax/compilation, workflow export and whitespace checks also passed.
+
+The general workflow validates with 12 outfits and independent character/background replacements. A synthetic video ran through ComfyUI's actual expansion executor, sequential section gates, native video encoding, exact core trimming and assembled preview. Frame-position comparisons checked for omitted, duplicated or restarted movement; decoded source-audio correlation exceeded 0.99. Short/silent sources, model-only end padding, custom outfit timings and long intervals were also checked. The local ComfyUI server registered the new nodes and served their browser extension. Browser visual inspection was unavailable because the browser tool blocked the local preview URL; the upload controls were tested with mocked DOM/API inputs.
+
+These tests use synthetic media and bypass model inference explicitly. They verify workflow/assembly behavior, not GPU memory fit, visual fidelity, exact pose tracking or seamless wardrobe transitions. The existing generation pipeline and saved example artifacts remain unchanged.
+
+## Previous baseline
+
 **27 tests passed:** 19 client/pipeline/media tests and eight integration checks against the actual pinned ComfyUI source. Also passed: shell syntax checks, Python compilation, package dependency consistency and wheel packaging with bundled workflows/model manifest.
 
 Local environment: macOS ARM64, Python 3.14.7, PyTorch 2.13.0, torchvision 0.28.0, Comfy Kitchen 0.2.37, Comfy Aimdo 0.5.5. The deployed interpreter is Python 3.11 with CUDA 13.0; Linux/CUDA execution remains pending.

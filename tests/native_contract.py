@@ -17,11 +17,12 @@ import comfy.options
 comfy.options.enable_args_parsing()
 import folder_paths
 import nodes
-from comfy_api.latest import io
+from comfy_api.latest import io, InputImpl
 from h3_pipeline import server_nodes as custom
 from h3_pipeline import server_runtime as runtime
 from h3_pipeline.config import ASSETS, COMFY_REVISION, model_files
 from h3_pipeline.workflow import build_workflow
+from h3_pipeline import dance_nodes as dance
 
 
 class NativeContractTests(unittest.TestCase):
@@ -183,6 +184,119 @@ class NativeContractTests(unittest.TestCase):
         self.assertEqual(len(frames), 56)
         self.assertEqual(audio["waveform"].shape[-1], round(56 / 24 * audio["sample_rate"]))
         runtime.finish(context)
+
+    def dance_fixture(self, outfits=2, silent=False):
+        from PIL import Image
+        from h3_pipeline.media import run, executable
+        source = self.root / "input/general-dance.mp4"
+        command = [executable("ffmpeg"), "-nostdin", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=96x128:rate=24"]
+        if not silent:
+            command += ["-f", "lavfi", "-i", "sine=sample_rate=48000", "-c:a", "aac"]
+        run(command + ["-t", "2.5", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(source)])
+        paths = []
+        for i in range(outfits):
+            name = f"general-outfit-{i}.png"
+            Image.new("RGB", (64, 64), (i * 10, 64, 128)).save(self.root / "input" / name)
+            paths.append(name)
+        return {"reference_video": source.name, "character_image": "Keep original", "background_image": "Keep original",
+                "outfit_images": json.dumps(paths), "prompt": "Dance naturally", "seed": 123,
+                "megapixels": 0.98, "max_section_seconds": 5, "audio_mode": "source", "profile": "int8-encoder",
+                "steps": 25, "turbo": False, "context_frames": 4, "outfit_durations": "[]",
+                "start_seconds": 0, "duration_seconds": 0}
+
+    def test_general_dance_workflow_expands_and_validates_more_than_nine_outfits(self):
+        import execution
+        from comfy_execution.graph_utils import is_link
+        job = self.dance_fixture(outfits=12)
+        self.assertTrue(dance.H3DanceWorkflow.VALIDATE_INPUTS(**{k: job[k] for k in (
+            "reference_video", "character_image", "background_image", "outfit_images")}, outfit_durations="[]"))
+        root = {"1": {"class_type": "H3DanceWorkflow", "inputs": job}}
+        valid, error, _, errors = asyncio.run(execution.validate_prompt("dance-root", root, None))
+        self.assertTrue(valid, json.dumps({"error": error, "nodes": errors}))
+        expanded = dance.H3DanceWorkflow().expand(**job)["expand"]
+        valid, error, _, errors = asyncio.run(execution.validate_prompt("dance-expanded", expanded, None))
+        self.assertTrue(valid, json.dumps({"error": error, "nodes": errors}))
+        gates = [n for n in expanded.values() if n["class_type"] == "H3DanceBeginSection"]
+        self.assertEqual(len(gates), 12)
+        self.assertNotIn("previous_section", gates[0]["inputs"])
+        for gate in gates[1:]:
+            dependency = gate["inputs"]["previous_section"]
+            self.assertTrue(is_link(dependency))
+            self.assertEqual(expanded[dependency[0]]["class_type"], "H3DanceSaveSection")
+        references = [n for n in expanded.values() if n["class_type"] == "H3ReferenceToVideo"]
+        self.assertTrue(all(len([k for k in n["inputs"] if k.startswith("ref_images.")]) <= 4 for n in references))
+        # Every selected outfit is represented in its own prompt/mapping, never a
+        # competing set of clothing references in a single native H3 render.
+        mappings = [json.loads(n["inputs"]["reference_mapping"]) for n in expanded.values() if n["class_type"] == "H3RecordSettings"]
+        self.assertEqual(len({Path(m[2]["path"]).name for m in mappings}), 12)
+
+    def test_general_dance_synthetic_save_and_assembly_without_model_weights(self):
+        job = self.dance_fixture()
+        expanded = dance.H3DanceWorkflow().expand(**job)["expand"]
+        gates = [n["inputs"] for n in expanded.values() if n["class_type"] == "H3DanceBeginSection"]
+        job_directory = gates[0]["job_directory"]
+        report_path = dance.output_path(job_directory) / "report.json"
+        report = json.loads(report_path.read_text())
+        previous = None
+        # Substitute synthetic reference files for inference output. Everything
+        # after inference uses the real native encoder and real workflow nodes.
+        for section in report["sections"]:
+            index = section["index"]
+            context = dance.H3DanceBeginSection().begin(job_directory, index, previous)[0]
+            video_path = self.root / "input/h3-dance" / report["job_id"] / f"section-{index}.mp4"
+            previous = dance.H3DanceSaveSection().save(InputImpl.VideoFromFile(str(video_path)), context, job_directory, index)[0]
+        result = dance.H3DanceAssemble().assemble(job_directory, previous)
+        from h3_pipeline.media import verify_output
+        verify_output(result["result"][1], 60)
+        self.assertEqual(json.loads(report_path.read_text())["status"], "completed")
+        self.assertTrue(result["ui"]["animated"][0])
+        self.assertIsNone(runtime._active)
+
+    def test_general_dance_replacement_paths_and_silent_audio_mapping(self):
+        from PIL import Image
+        job = self.dance_fixture(outfits=1, silent=True)
+        for name in ("person.png", "scene.png"):
+            Image.new("RGB", (64, 64), "green").save(self.root / "input" / name)
+        job.update(character_image="person.png", background_image="scene.png")
+        expanded = dance.H3DanceWorkflow().expand(**job)["expand"]
+        records = [n["inputs"] for n in expanded.values() if n["class_type"] == "H3RecordSettings"]
+        mapping = json.loads(records[0]["reference_mapping"])
+        self.assertEqual([Path(m["path"]).name for m in mapping[:2]], ["person.png", "scene.png"])
+        self.assertFalse(any(m["tag"].startswith("<Audio") for m in mapping))
+        self.assertIn("Replace the original dancer", records[0]["prompt"])
+        self.assertIn("Replace the source background", records[0]["prompt"])
+        with self.assertRaises(ValueError):
+            dance.input_path("../outside.mp4")
+        with self.assertRaises(ValueError):
+            dance.output_path("../outside")
+
+    def test_general_dance_runs_through_native_expansion_executor_with_synthetic_video(self):
+        import execution
+        from types import SimpleNamespace
+        from app.assets.manager import NoAssets
+        from comfy.cli_args import args
+        job = self.dance_fixture()
+
+        def synthetic_graph(**options):
+            # Replace inference with the native source decoder/CreateVideo only.
+            # Exercise real graph expansion, queue ordering, profiling, save,
+            # trimming and final preview without loading any model weights.
+            graph = build_workflow(**options)
+            graph = {key: value for key, value in graph.items() if key in ("200", "201", "310", "130")}
+            graph["130"]["inputs"].update(images=["310", 0], audio=["310", 1])
+            return graph
+
+        server = SimpleNamespace(client_id=None, last_node_id=None, send_sync=lambda *args: None)
+        executor = execution.PromptExecutor(server, execution.CacheType.NONE,
+            {"ram": 0, "ram_inactive": 0}, asset_manager=NoAssets(args))
+        root = {"1": {"class_type": "H3DanceWorkflow", "inputs": job}}
+        with patch.object(dance, "build_workflow", side_effect=synthetic_graph):
+            executor.execute(root, "synthetic-dance-expansion", execute_outputs=["1"])
+        self.assertTrue(executor.success, str(executor.status_messages))
+        self.assertIsNone(runtime._active)
+        reports = list((self.root / "output/h3/dance").glob("*/report.json"))
+        matching = [json.loads(p.read_text()) for p in reports if json.loads(p.read_text()).get("status") == "completed"]
+        self.assertTrue(matching)
 
 
 if __name__ == "__main__":

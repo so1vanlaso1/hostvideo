@@ -105,7 +105,7 @@ def main(argv=None):
         elif args.command == "export-workflows":
             import shutil
             args.directory.mkdir(parents=True, exist_ok=True)
-            for name in ("ref2va_16gb_ui.json", "ref2va_api.json", "ref2va_quality_5s_098mp.json"):
+            for name in ("ref2va_16gb_ui.json", "ref2va_api.json", "ref2va_quality_5s_098mp.json", "dance_general_ui.json"):
                 shutil.copy2(ASSETS / "workflows" / name, args.directory / name)
             print(args.directory.resolve())
         elif args.command in ("generate", "benchmark"):

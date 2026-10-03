@@ -60,6 +60,23 @@ For deployment on another Vast instance, register `scripts/start_comfy.sh` as a 
 
 ## 3. Browser workflow
 
+For reusable dance videos with wardrobe changes, load **`h3_pipeline/assets/workflows/dance_general_ui.json`**. This develops the latest three-section dance example into a configurable ComfyUI workflow; the existing Python/CLI generation API stays unchanged.
+
+1. Upload/select the dance video in **H3DanceWorkflow**.
+2. Leave **character_image** and **background_image** at **Keep original**, or upload/select either replacement independently.
+3. Use **Add outfit images (multiple)**, or select an existing uploaded image and add it. Each image defines one complete outfit. The order in **outfit_images** is the appearance order; edit that list to reorder/remove outfits. An empty list preserves the original clothing.
+4. Queue once. The workflow generates all sections sequentially, then previews the assembled video automatically.
+
+There is no nine-outfit limit: each render uses only the current outfit, fixed character/scene references, and the preceding section's appearance reference. Every outfit receives equal time by default. Optionally enter **outfit_durations**, a JSON array of seconds adding up to the selected video's duration. **start_seconds** and **duration_seconds** select a source excerpt; zero duration uses the rest of the video. Long intervals split into renders capped by **max_section_seconds** (five seconds by default, reduced when necessary to fit H3's temporal grid and context). Each outfit must occupy at least one source-timeline frame.
+
+The workflow normalizes the source to 24 fps once, preserves its aspect ratio with a 32-pixel grid and output area cap, and uses matching chronological excerpts for every section. Extra context frames surround cuts; native `17k+5` alignment and any end padding apply to generation windows only. Assembly removes that context/padding and keeps each timeline frame exactly once. It uses cuts, not crossfades that would blend two dancers/outfits. **audio_mode=source** retains the source soundtrack continuously; silent sources use generated music. **generated** uses each rendered section's audio.
+
+Each queue creates a separate `output/h3/dance/dance-.../` folder containing `generated.mp4`, `report.json`, the expanded API graph, and each section's prompt, references, raw output, trimmed clip and continuity frame. Prepared uploads live under `input/h3-dance/`. The report records the exact outfit/source frame intervals. An interrupted or failed render leaves those files for inspection; it does not assemble a partial sequence or automatically resubmit GPU work.
+
+The workflow follows H3's reference-video conditioning rather than guaranteeing exact pose tracking. Shared references and appearance continuity help, but visual identity, background preservation, clothing accuracy and seamless movement across cuts require a GPU render and review. No new model weights are needed beyond the existing selected profile. Restart ComfyUI after updating the source/custom nodes, reload the browser so its upload controls appear, and import the new workflow. `h3 export-workflows` and setup now include it.
+
+For the existing single-clip workflow:
+
 Load **`h3_pipeline/assets/workflows/ref2va_16gb_ui.json`** in ComfyUI. Setup also copies it to `user/default/workflows`.
 
 1. Upload/select a character image, clothing image and dance video in the corresponding reference loaders.

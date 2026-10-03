@@ -177,8 +177,40 @@ def quality_start_graph():
     return graph
 
 
+def dance_graph():
+    from h3_pipeline.dance_workflow import KEEP_ORIGINAL
+    widgets = ["Choose dance video", KEEP_ORIGINAL, KEEP_ORIGINAL, "[]",
+               "A realistic full-body dance with natural motion and consistent appearance.",
+               123456789, 0.98, 5.0, "source", DEFAULT_PROFILE, 25, False, 12, "[]", 0.0, 0.0]
+    instructions = ("1. Upload/select any dance video.\n"
+                    "2. Keep original character/background, or upload/select replacements.\n"
+                    "3. Upload any number of outfits in appearance order (one file = one outfit).\n"
+                    "   Reorder filenames in outfit_images; [] keeps source clothing.\n"
+                    "4. Queue once. All outfit sections render and join automatically.\n"
+                    "\nOutfits share equal time by default. Optional outfit_durations assigns seconds to each outfit, "
+                    "covering the full video. Long outfit intervals split into smaller renders. "
+                    "Output keeps the source aspect ratio, complete 24 fps timeline and soundtrack (when present). "
+                    "Cuts have context frames trimmed away; pose/identity fidelity still needs visual review. "
+                    "Find clips, graphs and reports under output/h3/dance/. "
+                    "This is a configurable ComfyUI workflow; the Python/CLI generation pipeline is unchanged.")
+    return {"id": "2e4d1c28-42d1-453a-a01f-ecbb91bbd7f6", "revision": 1,
+            "last_node_id": 2, "last_link_id": 0,
+            "nodes": [{"id": 1, "type": "H3DanceWorkflow", "pos": [80, 80], "size": [700, 1100],
+                       "flags": {}, "order": 0, "mode": 0, "inputs": [],
+                       "outputs": [{"name": "assembled_video", "type": "VIDEO", "links": None, "slot_index": 0},
+                                   {"name": "output_path", "type": "STRING", "links": None, "slot_index": 1}],
+                       "properties": {"Node name for S&R": "H3DanceWorkflow"}, "widgets_values": widgets},
+                      {"id": 2, "type": "Note", "pos": [840, 80], "size": [460, 510],
+                       "flags": {}, "order": 1, "mode": 0, "inputs": [], "outputs": [],
+                       "properties": {}, "widgets_values": [instructions]}],
+            "links": [], "groups": [], "config": {},
+            "extra": {"ds": {"scale": 0.75, "offset": [0, 0]}, "h3_pipeline": {"instructions": instructions}},
+            "version": 0.4}
+
+
 if __name__ == "__main__":
     write_json(ASSETS / "workflows" / "ref2va_api.json", api_graph())
     write_json(ASSETS / "workflows" / "ref2va_16gb_ui.json", ui_graph())
     write_json(ASSETS / "workflows" / "ref2va_quality_5s_098mp.json", quality_start_graph())
+    write_json(ASSETS / "workflows" / "dance_general_ui.json", dance_graph())
     print("Built API and UI workflows from the pinned official template")
