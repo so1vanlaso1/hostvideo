@@ -3,7 +3,7 @@ from pathlib import Path
 import shutil
 import time
 
-from .config import MODEL_REPO, MODEL_REVISION, model_files, write_json
+from .config import DEFAULT_PROFILE, MODEL_REPO, MODEL_REVISION, model_files, write_json
 
 
 def digest(path):
@@ -15,7 +15,7 @@ def digest(path):
 
 
 class ModelManager:
-    def __init__(self, root, profile="primary"):
+    def __init__(self, root, profile=DEFAULT_PROFILE):
         self.root = Path(root)
         self.profile = profile
         self.files = model_files(profile)

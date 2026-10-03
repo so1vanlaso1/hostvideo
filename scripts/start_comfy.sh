@@ -8,4 +8,4 @@ PYTHON="$H3_ROOT/venv/bin/python"
 mkdir -p "$H3_ROOT/locks" "$H3_ROOT/logs"
 exec 8>"$H3_ROOT/locks/server.lock"
 flock -n 8 || { echo 'The managed ComfyUI server is already running.' >&2; exit 1; }
-exec "$PYTHON" -m h3_pipeline --root "$H3_ROOT" serve --port "$PORT" --profile "${H3_PROFILE:-primary}"
+exec "$PYTHON" -m h3_pipeline --root "$H3_ROOT" serve --port "$PORT" --profile "${H3_PROFILE:-int8-encoder}"

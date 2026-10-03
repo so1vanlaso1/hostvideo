@@ -1,0 +1,22 @@
+[
+  {
+    "tag": "<Picture 1>",
+    "role": "same dancer identity from video",
+    "path": "/workspace/minimax-h3/projects/dance-outfit-sequence/dancer-identity.png"
+  },
+  {
+    "tag": "<Picture 2>",
+    "role": "outfit 2 clothing only",
+    "path": "/workspace/hostvideo/ref/qNh0S3SXyDGQM6VzOO0kxAlI8ttZ7nOi8w5TWdqp-1.jpg"
+  },
+  {
+    "tag": "<Audio 1>",
+    "role": "dance soundtrack",
+    "path": "/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4"
+  },
+  {
+    "tag": "<Video 1>",
+    "role": "dancer and choreography from 3.750s",
+    "path": "/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4"
+  }
+]

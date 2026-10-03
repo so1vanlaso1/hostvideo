@@ -1,0 +1,10 @@
+{
+  "status": "running",
+  "completed_sections": [
+    1,
+    2
+  ],
+  "active_section": 3,
+  "sampling_percent": 100,
+  "video_path": null
+}

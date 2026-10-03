@@ -5,13 +5,13 @@ umask 077
 SOURCE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 H3_ROOT="${H3_ROOT:-/data/minimax-h3}"
 export H3_ROOT
-PROFILE="${H3_PROFILE:-primary}"
+PROFILE="${H3_PROFILE:-int8-encoder}"
 COMFY_REVISION=e9027f2b30f37bb3052714eb08fcf479542f4fc0
 DOWNLOAD=false
 if [[ "${1:-}" == "--download-models" ]]; then
   DOWNLOAD=true
 elif [[ -n "${1:-}" ]]; then
-  echo 'Usage: H3_ROOT=/data/minimax-h3 H3_PROFILE=primary bash scripts/setup_vast.sh [--download-models]' >&2
+  echo 'Usage: H3_ROOT=/data/minimax-h3 H3_PROFILE=int8-encoder bash scripts/setup_vast.sh [--download-models]' >&2
   exit 2
 fi
 [[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]] || { echo 'Run this setup on the Linux x86-64 Vast instance.' >&2; exit 1; }
@@ -33,7 +33,7 @@ flock -n 9 || { echo 'Another setup process is running.' >&2; exit 1; }
 
 if [[ ! -d "$H3_ROOT/ComfyUI/.git" ]]; then
   [[ ! -e "$H3_ROOT/ComfyUI" ]] || { echo 'An unmanaged ComfyUI directory already exists; inspect it before continuing.' >&2; exit 1; }
-  git clone --depth 1 --no-checkout https://github.com/Comfy-Org/ComfyUI.git "$H3_ROOT/ComfyUI"
+  git clone --depth 1 https://github.com/Comfy-Org/ComfyUI.git "$H3_ROOT/ComfyUI"
 fi
 REMOTE="$(git -C "$H3_ROOT/ComfyUI" remote get-url origin)"
 [[ "$REMOTE" == https://github.com/Comfy-Org/ComfyUI.git ]] || { echo 'Existing checkout has an unexpected origin.' >&2; exit 1; }

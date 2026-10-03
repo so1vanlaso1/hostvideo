@@ -78,10 +78,20 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(refs["ref_video_audios.ref_video_audio_0"], ["310", 1])
         self.assertEqual(graph["121"]["inputs"]["video_ready"], ["122", 0])
         self.assertEqual(graph["130"]["inputs"]["audio"], ["121", 0])
-        self.assertEqual(graph["124"]["inputs"]["steps"], 4)
-        self.assertEqual(graph["124"]["inputs"]["scheduler"], "beta")
+        self.assertEqual(graph["124"]["inputs"]["steps"], 25)
+        self.assertEqual(graph["124"]["inputs"]["scheduler"], "simple")
+        self.assertNotIn("145", graph)
+        self.assertEqual(graph["126"]["inputs"]["model"], ["127", 0])
+        self.assertEqual(graph["124"]["inputs"]["model"], ["127", 0])
         self.assertEqual(graph["126"]["class_type"], "BasicGuider")
         self.assertEqual(graph["92"]["inputs"]["format.codec"], "h264")
+
+    def test_turbo_is_explicit_and_requires_four_steps(self):
+        graph = validate_graph(self.graph(turbo=True, steps=4))
+        self.assertEqual(graph["126"]["inputs"]["model"], ["145", 0])
+        self.assertEqual(graph["124"]["inputs"]["model"], ["145", 0])
+        with self.assertRaisesRegex(ValueError, "four steps"):
+            self.graph(turbo=True, steps=25)
 
     def test_profiles_are_explicit(self):
         for profile in ("primary", "fp8", "int8-encoder", "fp8-int8-encoder"):
@@ -106,6 +116,13 @@ class WorkflowTests(unittest.TestCase):
         for link, source, source_slot, target, target_slot, kind in graph["links"]:
             self.assertIn(link, nodes[source]["outputs"][source_slot]["links"])
             self.assertEqual(link, nodes[target]["inputs"][target_slot]["link"])
+            self.assertIn(nodes[source]["outputs"][source_slot]["type"], kind.split(","))
+            self.assertIn(kind, nodes[target]["inputs"][target_slot]["type"].split(","))
+        record = nodes[201]["widgets_values"]
+        self.assertEqual(len(record), 9)
+        self.assertEqual(record[5], nodes[127]["widgets_values"][0])
+        self.assertEqual(record[6], nodes[128]["widgets_values"][0])
+        self.assertIn(record[7], ("max", "match"))
         visiting, visited = set(), set()
         def visit(node_id):
             self.assertNotIn(node_id, visiting, f"Cycle at {node_id}")
@@ -216,7 +233,7 @@ class PipelineTests(unittest.TestCase):
     def test_bounded_oom_ladder_and_preserved_duration_seed(self):
         client = FakeClient([oom()] * 4)
         with tempfile.TemporaryDirectory() as root, patch("h3_pipeline.pipeline.verify_output", return_value={"test_fixture": True}):
-            result = MiniMaxH3Pipeline(root=root, client=client, progress=None).generate("A dance", seed=77)
+            result = MiniMaxH3Pipeline(root=root, client=client, progress=None).generate("A dance", seed=77, oom_fallback=True)
             self.assertEqual(len(client.graphs), 5)
             self.assertTrue(result.performance_report["fallback_used"])
             self.assertEqual(result.performance_report["effective_megapixels"], 0.4)
@@ -240,12 +257,22 @@ class PipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             client = FakeClient([oom()] * 8)
             with self.assertRaisesRegex(GenerationError, "fallback exhausted"):
-                MiniMaxH3Pipeline(root=root, client=client, progress=None).generate("Dance", megapixels=0.4)
+                MiniMaxH3Pipeline(root=root, client=client, progress=None).generate("Dance", megapixels=0.4, oom_fallback=True)
             self.assertEqual(len(client.graphs), 3)
         job = benchmark_job({"prompt": "Dance", "reference_video": "video", "character_images": ["face"], "clothing_images": ["outfit"]}, "smoke")
         self.assertFalse(job["oom_fallback"])
         self.assertNotIn("reference_video", job)
         self.assertEqual(job["duration"], 3)
+
+    def test_quality_default_stops_on_oom_without_reducing_canvas(self):
+        with tempfile.TemporaryDirectory() as root:
+            client = FakeClient([oom()] * 8)
+            with self.assertRaisesRegex(GenerationError, "quality reductions are disabled"):
+                MiniMaxH3Pipeline(root=root, client=client, progress=None).generate("Dance")
+            self.assertEqual(len(client.graphs), 1)
+            settings = client.graphs[0]["136"]["inputs"]
+            self.assertEqual((settings["width"], settings["height"]), (1344, 768))
+            self.assertEqual(settings["ref_image_size"], "max")
 
     def test_json_job_asset_paths_and_options(self):
         with tempfile.TemporaryDirectory() as root:

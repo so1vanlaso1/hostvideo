@@ -1,0 +1,31 @@
+{
+  "job_id": "20261003-163351-b62a8cfd74",
+  "status": "failed",
+  "seed": 123456789,
+  "requested_duration": 5.0,
+  "actual_duration": 5.166666666666667,
+  "frame_count": 124,
+  "profile": "int8-encoder",
+  "requested_megapixels": 0.98,
+  "steps": 25,
+  "turbo": false,
+  "scheduler": "simple",
+  "attempts": [
+    {
+      "attempt": 1,
+      "job_id": "20261003-163351-b62a8cfd74-a1",
+      "reason": "requested settings",
+      "megapixels": 0.98,
+      "width": 1344,
+      "height": 768,
+      "ref_image_size": "max",
+      "memory_level": 0,
+      "preprocessing_seconds": 0.0014264266937971115,
+      "reference_video": null,
+      "workflow_path": "/workspace/minimax-h3/jobs/20261003-163351-b62a8cfd74/attempt-1/workflow-api.json"
+    }
+  ],
+  "reference_mapping": [],
+  "error": "Generation was interrupted in ComfyUI",
+  "total_wall_seconds": 260.8490405799821
+}

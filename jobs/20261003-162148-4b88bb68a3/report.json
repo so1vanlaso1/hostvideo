@@ -1,0 +1,281 @@
+{
+  "job_id": "20261003-162148-4b88bb68a3",
+  "status": "completed",
+  "seed": 123456789,
+  "requested_duration": 3.0,
+  "actual_duration": 3.0416666666666665,
+  "frame_count": 73,
+  "profile": "primary",
+  "requested_megapixels": 0.4,
+  "attempts": [
+    {
+      "attempt": 1,
+      "job_id": "20261003-162148-4b88bb68a3-a1",
+      "reason": "requested settings",
+      "megapixels": 0.4,
+      "width": 864,
+      "height": 480,
+      "ref_image_size": "match",
+      "memory_level": 0,
+      "preprocessing_seconds": 0.001436356920748949,
+      "reference_video": null,
+      "workflow_path": "/workspace/minimax-h3/jobs/20261003-162148-4b88bb68a3/attempt-1/workflow-api.json",
+      "status": "completed",
+      "wall_seconds": 86.45878325821832,
+      "server": {
+        "job_id": "20261003-162148-4b88bb68a3-a1",
+        "status": "completed",
+        "memory_level": 0,
+        "comfy_revision": "e9027f2b30f37bb3052714eb08fcf479542f4fc0",
+        "model_revision": "e5eb578a89295337b8ff433a035929ce0279e0b6",
+        "stages_seconds": {
+          "vae_checkpoint_load": 1.1412757537327707,
+          "qwen_checkpoint_load": 1.5222550388425589,
+          "qwen_encode": 22.13870113529265,
+          "reference_conditioning_and_latents": 22.183250405825675,
+          "diffusion_checkpoint_load": 0.31886737793684006,
+          "lora_load": 0.13412629812955856,
+          "sampling_schedule": 0.0015499191358685493,
+          "h3_sampling": 36.88611348113045,
+          "video_vae_decode": 8.099359553307295,
+          "audio_vae_decode": 0.6628270619548857,
+          "video_encoding": 4.292916786856949
+        },
+        "model_activity": [
+          {
+            "operation": "free_memory",
+            "seconds": 0.00030374014750123024,
+            "requested_bytes": 19188337544.9
+          },
+          {
+            "operation": "load_models_gpu",
+            "seconds": 0.19319138303399086
+          },
+          {
+            "operation": "free_memory",
+            "seconds": 0.0005347048863768578,
+            "requested_bytes": 28265274526.38208
+          },
+          {
+            "operation": "free_memory",
+            "seconds": 0.0003103748895227909,
+            "requested_bytes": 3137363551.19104
+          },
+          {
+            "operation": "load_models_gpu",
+            "seconds": 0.08049688534811139
+          },
+          {
+            "operation": "free_memory",
+            "seconds": 0.0012068580836057663,
+            "requested_bytes": 5024797513.6
+          },
+          {
+            "operation": "load_models_gpu",
+            "seconds": 0.09309640899300575
+          },
+          {
+            "operation": "free_memory",
+            "seconds": 0.0007253019139170647,
+            "requested_bytes": 2598399491.2
+          },
+          {
+            "operation": "free_memory",
+            "seconds": 0.0005313530564308167,
+            "requested_bytes": 1932735283.2
+          },
+          {
+            "operation": "load_models_gpu",
+            "seconds": 0.10103408666327596
+          }
+        ],
+        "system_ram_peak_bytes": 44688502784,
+        "system_ram_measurement": "process tree RSS, sampled every 250 ms",
+        "gpu_peak_allocated_bytes": 665570400,
+        "gpu_peak_reserved_bytes": 1174405120,
+        "torch_version": "2.13.0+cu130",
+        "cuda_version": "13.0",
+        "gpu_model": "NVIDIA GeForce RTX 5060 Ti",
+        "gpu_total_vram_bytes": 16619667456,
+        "width": 864,
+        "height": 480,
+        "length": 73,
+        "prompt": "Generate native synchronized audio appropriate to the scene.\n\nA full-body dancer performs a simple dance in a studio. Natural motion, soft lighting and synchronized rhythmic music.\n\nOne continuous shot, natural body motion, coherent hands and limbs, consistent identity and outfit.",
+        "seed": 123456789,
+        "diffusion": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+        "encoder": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "ref_image_size": "match",
+        "reference_mapping": [],
+        "actual_duration": 3.0416666666666665,
+        "frame_count": 73,
+        "megapixels": 0.3955078125,
+        "sampler": "res_multistep",
+        "steps": 4,
+        "guidance": 1,
+        "batch_size": 1,
+        "video_vae": "minimax_h3_video_vae_int8_convrot.safetensors",
+        "audio_vae": "minimax_h3_audio_vae_fp32.safetensors",
+        "lora": "minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors",
+        "quantization": {
+          "diffusion": "int8_convrot",
+          "encoder": "nvfp4_awq",
+          "video_vae": "int8_convrot",
+          "audio_vae": "fp32",
+          "lora": "bf16"
+        },
+        "scheduler": "beta",
+        "denoise": 1.0,
+        "decoded_video_device": "cpu",
+        "decoded_video_dtype": "torch.float16",
+        "total_wall_seconds": 75.97772713424638,
+        "compute_seconds_per_output_second": 24.978978783861823
+      }
+    }
+  ],
+  "reference_mapping": [],
+  "video_path": "/workspace/minimax-h3/jobs/20261003-162148-4b88bb68a3/generated.mp4",
+  "total_wall_seconds": 86.78599595883861,
+  "compute_seconds_per_output_second": 28.53238223304283,
+  "effective_megapixels": 0.4,
+  "effective_width": 864,
+  "effective_height": 480,
+  "fallback_used": false,
+  "media": {
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "h264",
+        "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+        "profile": "High",
+        "codec_type": "video",
+        "codec_tag_string": "avc1",
+        "codec_tag": "0x31637661",
+        "width": 864,
+        "height": 480,
+        "coded_width": 864,
+        "coded_height": 480,
+        "closed_captions": 0,
+        "film_grain": 0,
+        "has_b_frames": 2,
+        "pix_fmt": "yuv420p",
+        "level": 30,
+        "color_range": "tv",
+        "color_space": "bt709",
+        "color_transfer": "iec61966-2-1",
+        "color_primaries": "bt709",
+        "chroma_location": "left",
+        "field_order": "progressive",
+        "refs": 1,
+        "is_avc": "true",
+        "nal_length_size": "4",
+        "id": "0x1",
+        "r_frame_rate": "24/1",
+        "avg_frame_rate": "24/1",
+        "time_base": "1/12288",
+        "start_pts": 0,
+        "start_time": "0.000000",
+        "duration_ts": 37376,
+        "duration": "3.041667",
+        "bit_rate": "6798122",
+        "bits_per_raw_sample": "8",
+        "nb_frames": "73",
+        "extradata_size": 49,
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0
+        },
+        "tags": {
+          "language": "und",
+          "handler_name": "VideoHandler",
+          "vendor_id": "[0][0][0][0]"
+        }
+      },
+      {
+        "index": 1,
+        "codec_name": "aac",
+        "codec_long_name": "AAC (Advanced Audio Coding)",
+        "profile": "LC",
+        "codec_type": "audio",
+        "codec_tag_string": "mp4a",
+        "codec_tag": "0x6134706d",
+        "sample_fmt": "fltp",
+        "sample_rate": "32000",
+        "channels": 2,
+        "channel_layout": "stereo",
+        "bits_per_sample": 0,
+        "initial_padding": 0,
+        "id": "0x2",
+        "r_frame_rate": "0/0",
+        "avg_frame_rate": "0/0",
+        "time_base": "1/32000",
+        "start_pts": 0,
+        "start_time": "0.000000",
+        "duration_ts": 97344,
+        "duration": "3.042000",
+        "bit_rate": "125868",
+        "nb_frames": "97",
+        "extradata_size": 5,
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0
+        },
+        "tags": {
+          "language": "und",
+          "handler_name": "SoundHandler",
+          "vendor_id": "[0][0][0][0]"
+        }
+      }
+    ],
+    "format": {
+      "filename": "/workspace/minimax-h3/jobs/20261003-162148-4b88bb68a3/generated.mp4",
+      "nb_streams": 2,
+      "nb_programs": 0,
+      "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+      "format_long_name": "QuickTime / MOV",
+      "start_time": "0.000000",
+      "duration": "3.042000",
+      "size": "2640242",
+      "bit_rate": "6943437",
+      "probe_score": 100,
+      "tags": {
+        "major_brand": "isom",
+        "minor_version": "512",
+        "compatible_brands": "isomiso2avc1mp41",
+        "prompt": "{\"200\": {\"class_type\": \"H3Begin\", \"inputs\": {\"job_id\": \"20261003-162148-4b88bb68a3-a1\", \"memory_level\": 0}}, \"201\": {\"class_type\": \"H3RecordSettings\", \"inputs\": {\"context\": [\"200\", 0], \"width\": 864, \"height\": 480, \"length\": 73, \"prompt\": \"Generate native synchronized audio appropriate to the scene.\\n\\nA full-body dancer performs a simple dance in a studio. Natural motion, soft lighting and synchronized rhythmic music.\\n\\nOne continuous shot, natural body motion, coherent hands and limbs, consistent identity and outfit.\", \"seed\": 123456789, \"diffusion\": \"diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors\", \"encoder\": \"text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors\", \"ref_image_size\": \"match\", \"reference_mapping\": \"[]\"}}, \"127\": {\"class_type\": \"H3UNETLoader\", \"inputs\": {\"unet_name\": \"minimax_h3_ref2va_pruned_int8_convrot.safetensors\", \"weight_dtype\": \"default\", \"context\": [\"201\", 0]}}, \"128\": {\"class_type\": \"H3CLIPLoader\", \"inputs\": {\"clip_name\": \"qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors\", \"type\": \"minimax\", \"device\": \"default\", \"context\": [\"201\", 0]}}, \"119\": {\"class_type\": \"H3VAELoader\", \"inputs\": {\"vae_name\": \"minimax_h3_video_vae_int8_convrot.safetensors\", \"context\": [\"201\", 0]}}, \"120\": {\"class_type\": \"H3VAELoader\", \"inputs\": {\"vae_name\": \"minimax_h3_audio_vae_fp32.safetensors\", \"context\": [\"201\", 0]}}, \"145\": {\"class_type\": \"H3LoraLoader\", \"inputs\": {\"model\": [\"127\", 0], \"lora_name\": \"minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors\", \"strength_model\": 1.0, \"context\": [\"201\", 0]}}, \"136\": {\"class_type\": \"H3ReferenceToVideo\", \"inputs\": {\"clip\": [\"128\", 0], \"vae\": [\"119\", 0], \"audio_vae\": [\"120\", 0], \"prompt\": \"Generate native synchronized audio appropriate to the scene.\\n\\nA full-body dancer performs a simple dance in a studio. Natural motion, soft lighting and synchronized rhythmic music.\\n\\nOne continuous shot, natural body motion, coherent hands and limbs, consistent identity and outfit.\", \"width\": 864, \"height\": 480, \"length\": 73, \"ref_image_size\": \"match\", \"context\": [\"201\", 0]}}, \"123\": {\"class_type\": \"KSamplerSelect\", \"inputs\": {\"sampler_name\": \"res_multistep\"}}, \"124\": {\"class_type\": \"H3Scheduler\", \"inputs\": {\"model\": [\"145\", 0], \"scheduler\": \"beta\", \"steps\": 4, \"denoise\": 1.0, \"context\": [\"201\", 0]}}, \"126\": {\"class_type\": \"BasicGuider\", \"inputs\": {\"model\": [\"145\", 0], \"conditioning\": [\"136\", 0]}}, \"129\": {\"class_type\": \"RandomNoise\", \"inputs\": {\"noise_seed\": 123456789}}, \"125\": {\"class_type\": \"H3Sampler\", \"inputs\": {\"noise\": [\"129\", 0], \"guider\": [\"126\", 0], \"sampler\": [\"123\", 0], \"sigmas\": [\"124\", 0], \"latent_image\": [\"136\", 1], \"context\": [\"201\", 0]}}, \"122\": {\"class_type\": \"H3VideoDecode\", \"inputs\": {\"samples\": [\"125\", 0], \"vae\": [\"119\", 0], \"context\": [\"201\", 0]}}, \"121\": {\"class_type\": \"H3AudioDecode\", \"inputs\": {\"samples\": [\"125\", 0], \"vae\": [\"120\", 0], \"video_ready\": [\"122\", 0], \"context\": [\"201\", 0]}}, \"130\": {\"class_type\": \"CreateVideo\", \"inputs\": {\"images\": [\"122\", 0], \"audio\": [\"121\", 0], \"fps\": 24.0, \"bit_depth\": 8, \"color_space\": \"sRGB\"}}, \"92\": {\"class_type\": \"H3SaveVideo\", \"inputs\": {\"video\": [\"130\", 0], \"filename_prefix\": \"h3/20261003-162148-4b88bb68a3-a1/clip\", \"context\": [\"201\", 0], \"format\": \"mp4\", \"format.codec\": \"h264\", \"format.codec.encoding\": \"auto\"}}}",
+        "encoder": "Lavf62.12.102"
+      }
+    }
+  }
+}

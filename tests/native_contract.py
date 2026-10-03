@@ -36,7 +36,7 @@ class NativeContractTests(unittest.TestCase):
         for name in ("input", "output", "temp"):
             (cls.root / name).mkdir()
             getattr(folder_paths, f"set_{name}_directory")(str(cls.root / name))
-        for item in model_files().values():
+        for item in [*model_files().values(), *model_files("int8-encoder").values()]:
             path = cls.root / "models" / item["path"]
             path.parent.mkdir(parents=True, exist_ok=True)
             path.touch()  # Schema validation only; never attempt model loading.
@@ -75,6 +75,13 @@ class NativeContractTests(unittest.TestCase):
         valid, error, outputs, node_errors = asyncio.run(execution.validate_prompt("native-reference", graph, None))
         self.assertTrue(valid, json.dumps({"error": error, "nodes": node_errors}, indent=2))
 
+    def test_explicit_turbo_graph_still_validates_natively(self):
+        import execution
+        graph = build_workflow(prompt="A dancer", images=[], video=None, audio=None, include_video_audio=False,
+                               width=1344, height=768, length=73, seed=1, job_id="native-turbo", turbo=True, steps=4)
+        valid, error, outputs, node_errors = asyncio.run(execution.validate_prompt("native-turbo", graph, None))
+        self.assertTrue(valid, json.dumps({"error": error, "nodes": node_errors}, indent=2))
+
     def test_video_paired_audio_and_standalone_audio_graph_validates_natively(self):
         import execution
         from PIL import Image
@@ -86,6 +93,18 @@ class NativeContractTests(unittest.TestCase):
                                width=1056, height=608, length=362, seed=1, job_id="native-all-refs")
         valid, error, outputs, node_errors = asyncio.run(execution.validate_prompt("native-all-refs", graph, None))
         self.assertTrue(valid, json.dumps({"error": error, "nodes": node_errors}, indent=2))
+
+    def test_missing_video_reports_only_file_and_keeps_numeric_validation(self):
+        import execution
+        graph = build_workflow(prompt="A dancer", images=[], video="missing.mp4", audio=None,
+                               include_video_audio=True, width=1344, height=768, length=124,
+                               seed=1, job_id="native-missing-video")
+        _, _, _, errors = asyncio.run(execution.validate_prompt("missing-video", graph, None))
+        self.assertEqual([e["extra_info"]["input_name"] for e in errors["310"]["errors"]], ["file"])
+        (self.root / "input/numeric-check.mp4").touch()
+        graph["310"]["inputs"].update(file="numeric-check.mp4", megapixels=2)
+        _, _, _, errors = asyncio.run(execution.validate_prompt("invalid-megapixels", graph, None))
+        self.assertEqual([e["extra_info"]["input_name"] for e in errors["310"]["errors"]], ["megapixels"])
 
     def test_cpu_frames_native_decoder_and_memory_headroom_restore(self):
         import torch

@@ -1,0 +1,301 @@
+{
+  "200": {
+    "class_type": "H3Begin",
+    "inputs": {
+      "job_id": "browser",
+      "memory_level": 0
+    }
+  },
+  "201": {
+    "class_type": "H3RecordSettings",
+    "inputs": {
+      "context": [
+        "200",
+        0
+      ],
+      "width": 864,
+      "height": 1152,
+      "length": 294,
+      "prompt": "Create a photorealistic vertical dance fashion video, one uninterrupted shot lasting 12.25 seconds.\n<Picture 1> shows the dancer extracted directly from <Video 1>. Use this exact dancer throughout: preserve her face, long dark hair, skin tone, body proportions and apparent age. <Video 1> defines the same person's identity, dance movements, gestures, room, lighting, camera position and framing. Keep the same home interior and the same dancer, with natural hands and coherent limbs.\n<Picture 2>, <Picture 3> and <Picture 4> are CLOTHING DESIGN references only. Ignore the faces, hair, bodies, locations, logos and product text of the people in these clothing photographs. Transfer only their garments to the dancer from <Video 1>. Keep the dancer's own hair and face through both outfit transitions.\nFollow this precise wardrobe timeline, exactly three distinct complete outfits in this order:\n0.0\u20134.0 seconds: the dancer already wears the outfit in <Picture 2> from the opening frame: white short-sleeved collared blouse, gray patterned necktie and dark high-waisted wide-leg cropped trousers. She dances naturally and the complete first outfit is clearly visible.\nAt approximately 4.0 seconds, on a dance turn and musical beat, her clothing switches cleanly to the complete outfit in <Picture 3> while her face, hair, body, position, dance and background remain continuous.\n4.0\u20138.0 seconds: cream long-sleeved ruffled cropped blouse with a wide collar and matching cream short skirt from <Picture 3>. Show this outfit clearly while she continues the choreography.\nAt approximately 8.0 seconds, on the next dance turn and beat, her clothing switches cleanly to the complete outfit in <Picture 4>, maintaining the same dancer and continuous movement.\n8.0\u201312.25 seconds: light-gray short-sleeved zip-front top with red and white piping and matching light-gray long skirt from <Picture 4>. She finishes the dance wearing only this third outfit.\nThe two wardrobe switches are fully clothed fashion transitions. Each interval has one coherent outfit matching its assigned photograph; do not combine garment pieces from different references. Keep the framing wide enough to show the blouse, skirt or trousers and dancing legs throughout. No additional person, no face swap, no scene change, no split screen, no labels, no subtitles, no clothing-photo background.\nGenerate native synchronized dance music guided by the rhythm and atmosphere of <Audio 1>, paired with <Video 1>.",
+      "seed": 123456789,
+      "diffusion": "diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+      "encoder": "text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+      "ref_image_size": "max",
+      "reference_mapping": "[{\"tag\": \"<Picture 1>\", \"role\": \"dancer identity from video\", \"path\": \"/workspace/minimax-h3/projects/dance-outfit-sequence/dancer-identity.png\"}, {\"tag\": \"<Picture 2>\", \"role\": \"outfit 1: White short-sleeved collared blouse, gray patterned tie, dark high-waisted wide-leg cropped trousers\", \"path\": \"/workspace/hostvideo/ref/images.jpeg\"}, {\"tag\": \"<Picture 3>\", \"role\": \"outfit 2: Cream ruffled long-sleeved cropped blouse with wide collar and matching cream short skirt\", \"path\": \"/workspace/hostvideo/ref/qNh0S3SXyDGQM6VzOO0kxAlI8ttZ7nOi8w5TWdqp-1.jpg\"}, {\"tag\": \"<Picture 4>\", \"role\": \"outfit 3: Light-gray short-sleeved zip-front top with red-white piping and matching long skirt\", \"path\": \"/workspace/hostvideo/ref/Set-do-nu-poly-cotton-2da-ao-coc-tay-keo-khoa-chan-vay-dai-SFB3106.webp\"}, {\"tag\": \"<Audio 1>\", \"role\": \"soundtrack paired with <Video 1>\", \"path\": \"/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4\"}, {\"tag\": \"<Video 1>\", \"role\": \"dancer identity, dance, room and camera\", \"path\": \"/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4\"}]"
+    }
+  },
+  "127": {
+    "class_type": "H3UNETLoader",
+    "inputs": {
+      "unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+      "weight_dtype": "default",
+      "context": [
+        "201",
+        0
+      ]
+    }
+  },
+  "128": {
+    "class_type": "H3CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+      "type": "minimax",
+      "device": "default",
+      "context": [
+        "201",
+        0
+      ]
+    }
+  },
+  "119": {
+    "class_type": "H3VAELoader",
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors",
+      "context": [
+        "201",
+        0
+      ]
+    }
+  },
+  "120": {
+    "class_type": "H3VAELoader",
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors",
+      "context": [
+        "201",
+        0
+      ]
+    }
+  },
+  "136": {
+    "class_type": "H3ReferenceToVideo",
+    "inputs": {
+      "clip": [
+        "128",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ],
+      "audio_vae": [
+        "120",
+        0
+      ],
+      "prompt": "Create a photorealistic vertical dance fashion video, one uninterrupted shot lasting 12.25 seconds.\n<Picture 1> shows the dancer extracted directly from <Video 1>. Use this exact dancer throughout: preserve her face, long dark hair, skin tone, body proportions and apparent age. <Video 1> defines the same person's identity, dance movements, gestures, room, lighting, camera position and framing. Keep the same home interior and the same dancer, with natural hands and coherent limbs.\n<Picture 2>, <Picture 3> and <Picture 4> are CLOTHING DESIGN references only. Ignore the faces, hair, bodies, locations, logos and product text of the people in these clothing photographs. Transfer only their garments to the dancer from <Video 1>. Keep the dancer's own hair and face through both outfit transitions.\nFollow this precise wardrobe timeline, exactly three distinct complete outfits in this order:\n0.0\u20134.0 seconds: the dancer already wears the outfit in <Picture 2> from the opening frame: white short-sleeved collared blouse, gray patterned necktie and dark high-waisted wide-leg cropped trousers. She dances naturally and the complete first outfit is clearly visible.\nAt approximately 4.0 seconds, on a dance turn and musical beat, her clothing switches cleanly to the complete outfit in <Picture 3> while her face, hair, body, position, dance and background remain continuous.\n4.0\u20138.0 seconds: cream long-sleeved ruffled cropped blouse with a wide collar and matching cream short skirt from <Picture 3>. Show this outfit clearly while she continues the choreography.\nAt approximately 8.0 seconds, on the next dance turn and beat, her clothing switches cleanly to the complete outfit in <Picture 4>, maintaining the same dancer and continuous movement.\n8.0\u201312.25 seconds: light-gray short-sleeved zip-front top with red and white piping and matching light-gray long skirt from <Picture 4>. She finishes the dance wearing only this third outfit.\nThe two wardrobe switches are fully clothed fashion transitions. Each interval has one coherent outfit matching its assigned photograph; do not combine garment pieces from different references. Keep the framing wide enough to show the blouse, skirt or trousers and dancing legs throughout. No additional person, no face swap, no scene change, no split screen, no labels, no subtitles, no clothing-photo background.\nGenerate native synchronized dance music guided by the rhythm and atmosphere of <Audio 1>, paired with <Video 1>.",
+      "width": 864,
+      "height": 1152,
+      "length": 294,
+      "ref_image_size": "max",
+      "context": [
+        "201",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "300",
+        0
+      ],
+      "ref_images.ref_image_1": [
+        "301",
+        0
+      ],
+      "ref_images.ref_image_2": [
+        "302",
+        0
+      ],
+      "ref_images.ref_image_3": [
+        "303",
+        0
+      ],
+      "ref_videos.ref_video_0": [
+        "310",
+        0
+      ],
+      "ref_video_audios.ref_video_audio_0": [
+        "310",
+        1
+      ]
+    }
+  },
+  "123": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "res_multistep"
+    }
+  },
+  "124": {
+    "class_type": "H3Scheduler",
+    "inputs": {
+      "model": [
+        "127",
+        0
+      ],
+      "scheduler": "simple",
+      "steps": 25,
+      "denoise": 1.0,
+      "context": [
+        "201",
+        0
+      ]
+    }
+  },
+  "126": {
+    "class_type": "BasicGuider",
+    "inputs": {
+      "model": [
+        "127",
+        0
+      ],
+      "conditioning": [
+        "136",
+        0
+      ]
+    }
+  },
+  "129": {
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": 123456789
+    }
+  },
+  "125": {
+    "class_type": "H3Sampler",
+    "inputs": {
+      "noise": [
+        "129",
+        0
+      ],
+      "guider": [
+        "126",
+        0
+      ],
+      "sampler": [
+        "123",
+        0
+      ],
+      "sigmas": [
+        "124",
+        0
+      ],
+      "latent_image": [
+        "136",
+        1
+      ],
+      "context": [
+        "201",
+        0
+      ]
+    }
+  },
+  "122": {
+    "class_type": "H3VideoDecode",
+    "inputs": {
+      "samples": [
+        "125",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ],
+      "context": [
+        "201",
+        0
+      ]
+    }
+  },
+  "121": {
+    "class_type": "H3AudioDecode",
+    "inputs": {
+      "samples": [
+        "125",
+        0
+      ],
+      "vae": [
+        "120",
+        0
+      ],
+      "video_ready": [
+        "122",
+        0
+      ],
+      "context": [
+        "201",
+        0
+      ]
+    }
+  },
+  "130": {
+    "class_type": "CreateVideo",
+    "inputs": {
+      "images": [
+        "122",
+        0
+      ],
+      "audio": [
+        "121",
+        0
+      ],
+      "fps": 24.0,
+      "bit_depth": 8,
+      "color_space": "sRGB"
+    }
+  },
+  "92": {
+    "class_type": "H3SaveVideo",
+    "inputs": {
+      "video": [
+        "130",
+        0
+      ],
+      "filename_prefix": "h3/browser/clip",
+      "context": [
+        "201",
+        0
+      ],
+      "format": "mp4",
+      "format.codec": "h264",
+      "format.codec.encoding": "re-encode",
+      "format.codec.encoding.crf": 16.0
+    }
+  },
+  "300": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "dance_dancer.png"
+    }
+  },
+  "301": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "dance_outfit_1.png"
+    }
+  },
+  "302": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "dance_outfit_2.png"
+    }
+  },
+  "303": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "dance_outfit_3.png"
+    }
+  },
+  "310": {
+    "class_type": "H3LoadReferenceVideo",
+    "inputs": {
+      "file": "dance_reference.mp4",
+      "duration": 12.25,
+      "megapixels": 0.94921875,
+      "aspect_ratio": "9:16",
+      "start": 0.0,
+      "include_audio": true,
+      "context": [
+        "200",
+        0
+      ]
+    }
+  }
+}

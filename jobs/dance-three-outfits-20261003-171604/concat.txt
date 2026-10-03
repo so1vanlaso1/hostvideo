@@ -1,0 +1,3 @@
+file 'section-1/generated.mp4'
+file 'section-2/generated.mp4'
+file 'section-3/generated.mp4'

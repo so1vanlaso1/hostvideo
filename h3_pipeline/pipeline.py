@@ -6,7 +6,7 @@ import time
 import uuid
 
 from .client import ComfyClient, ComfyExecutionError
-from .config import RuntimePaths, write_json
+from .config import DEFAULT_PROFILE, RuntimePaths, write_json
 from .locking import file_lock
 from .media import prepare_audio, prepare_image, prepare_video, verify_output
 from .references import FPS, PromptBuilder, ReferenceManager, canvas, frame_count
@@ -41,7 +41,7 @@ def fallback_attempts(megapixels, mode):
 
 
 class MiniMaxH3Pipeline:
-    def __init__(self, server_url="http://127.0.0.1:8188", root=None, profile="primary",
+    def __init__(self, server_url="http://127.0.0.1:8188", root=None, profile=DEFAULT_PROFILE,
                  username=None, password=None, client=None, progress=print):
         self.paths = RuntimePaths(Path(root).expanduser().resolve()) if root else RuntimePaths.default()
         self.profile = profile
@@ -49,15 +49,22 @@ class MiniMaxH3Pipeline:
         self.progress = progress
 
     def generate(self, prompt, reference_video=None, character_images=None, clothing_images=None,
-                 additional_reference_images=None, reference_audio=None, duration=15.0, megapixels=0.6,
-                 seed=None, *, aspect_ratio="16:9", ref_image_size="match", include_video_audio=True,
-                 reference_video_start=0.0, scheduler="beta", oom_fallback=True, timeout=7200):
+                 additional_reference_images=None, reference_audio=None, duration=15.0, megapixels=0.98,
+                 seed=None, *, aspect_ratio="16:9", ref_image_size="max", include_video_audio=True,
+                 reference_video_start=0.0, scheduler="simple", steps=25, turbo=False,
+                 oom_fallback=False, timeout=21600):
         length = frame_count(duration)
         canvas(megapixels, aspect_ratio)
         if ref_image_size not in ("match", "max"):
             raise ValueError("ref_image_size must be match or max")
-        if scheduler not in ("beta", "normal"):
-            raise ValueError("scheduler must be beta or normal")
+        if scheduler not in ("simple", "beta", "normal"):
+            raise ValueError("scheduler must be simple, beta or normal")
+        if not isinstance(turbo, bool):
+            raise ValueError("turbo must be a boolean")
+        if isinstance(steps, bool) or not isinstance(steps, int) or not 1 <= steps <= 100:
+            raise ValueError("steps must be an integer between 1 and 100")
+        if turbo and steps != 4:
+            raise ValueError("Turbo requires exactly four steps; disable turbo for base sampling")
         if timeout <= 0:
             raise ValueError("timeout must be positive")
         if seed is None:
@@ -75,10 +82,10 @@ class MiniMaxH3Pipeline:
         with file_lock(self.paths.root / "locks" / "generation.lock"):
             return self._generate(prompt, images, reference_video, reference_audio, duration, megapixels,
                                   length, seed, aspect_ratio, ref_image_size, include_video_audio,
-                                  reference_video_start, scheduler, oom_fallback, timeout)
+                                  reference_video_start, scheduler, steps, turbo, oom_fallback, timeout)
 
     def _generate(self, prompt, images, video, audio, duration, megapixels, length, seed, aspect,
-                  mode, include_audio, video_start, scheduler, oom_fallback, timeout):
+                  mode, include_audio, video_start, scheduler, steps, turbo, oom_fallback, timeout):
         job_id = time.strftime("%Y%m%d-%H%M%S", time.gmtime()) + "-" + uuid.uuid4().hex[:10]
         job_dir = self.paths.root / "jobs" / job_id
         job_dir.mkdir(parents=True)
@@ -86,7 +93,8 @@ class MiniMaxH3Pipeline:
         report_path = job_dir / "report.json"
         report = {"job_id": job_id, "status": "preparing", "seed": seed,
                   "requested_duration": duration, "actual_duration": length / FPS, "frame_count": length,
-                  "profile": self.profile, "requested_megapixels": megapixels, "attempts": []}
+                  "profile": self.profile, "requested_megapixels": megapixels, "steps": steps,
+                  "turbo": turbo, "scheduler": scheduler, "attempts": []}
         write_json(report_path, report)
         try:
             self.client.check()
@@ -120,7 +128,7 @@ class MiniMaxH3Pipeline:
                 graph = validate_graph(build_workflow(prompt=effective_prompt, images=uploaded_images,
                     video=uploaded_video, audio=uploaded_audio, include_video_audio=paired, width=width, height=height,
                     length=length, seed=seed, job_id=attempt_id, memory_level=memory_level,
-                    ref_image_size=ref_mode, profile=self.profile, scheduler=scheduler))
+                    ref_image_size=ref_mode, profile=self.profile, scheduler=scheduler, steps=steps, turbo=turbo))
                 graph["201"]["inputs"]["reference_mapping"] = json.dumps([r.dict() for r in refs])
                 workflow_path = work / "workflow-api.json"
                 write_json(workflow_path, graph)
@@ -166,6 +174,8 @@ class MiniMaxH3Pipeline:
                 write_json(report_path, report)
                 return GenerationResult(video_path, str(report_path), str(workflow_path), seed,
                                         [r.dict() for r in refs], report)
+            if not oom_fallback:
+                raise RuntimeError("CUDA OOM at requested quality; automatic quality reductions are disabled")
             raise RuntimeError("CUDA OOM fallback exhausted, including available 0.5/0.4 MP reductions; duration was preserved")
         except Exception as exc:
             report.update(status="failed", error=str(exc), total_wall_seconds=time.monotonic() - started)

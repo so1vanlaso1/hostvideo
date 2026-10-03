@@ -52,14 +52,14 @@ class H3RecordSettings:
     @classmethod
     def INPUT_TYPES(cls):
         return {"required": {"context": ("STRING", {"forceInput": True}),
-                             "width": ("INT", {"default": 1056, "min": 32, "max": 1344}),
-                             "height": ("INT", {"default": 608, "min": 32, "max": 1344}),
+                             "width": ("INT", {"default": 1344, "min": 32, "max": 1344}),
+                             "height": ("INT", {"default": 768, "min": 32, "max": 1344}),
                              "length": ("INT", {"default": 362, "min": 5, "max": 362}),
                              "prompt": ("STRING", {"default": "", "multiline": True}),
-                             "seed": ("INT", {"default": 1, "min": 0, "max": 0xffffffffffffffff}),
+                             "seed": ("INT", {"default": 1, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": False}),
                              "diffusion": ("STRING", {"default": "minimax_h3_ref2va_pruned_int8_convrot.safetensors"}),
-                             "encoder": ("STRING", {"default": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors"}),
-                             "ref_image_size": (["match", "max"],),
+                             "encoder": ("STRING", {"default": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors"}),
+                             "ref_image_size": (["max", "match"],),
                              "reference_mapping": ("STRING", {"default": "[]", "multiline": True})}}
     RETURN_TYPES = ("STRING",)
     FUNCTION = "record"
@@ -74,10 +74,10 @@ class H3RecordSettings:
         settings["reference_mapping"] = json.loads(settings["reference_mapping"])
         settings.update(actual_duration=settings["length"] / 24, frame_count=settings["length"],
                         megapixels=settings["width"] * settings["height"] / 1024**2,
-                        sampler="res_multistep", steps=4, guidance=1, batch_size=1,
+                        sampler="res_multistep", guidance=1, batch_size=1,
                         video_vae="minimax_h3_video_vae_int8_convrot.safetensors",
                         audio_vae="minimax_h3_audio_vae_fp32.safetensors",
-                        lora="minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors")
+                        lora=None, turbo=False)
         runtime.current(context).data.update(settings)
         return (context,)
 
@@ -100,12 +100,14 @@ def profiled_loader(native, node_id, label):
             for field, target in (("unet_name", "diffusion"), ("clip_name", "encoder"), ("lora_name", "lora")):
                 if field in kwargs:
                     monitor.data[target] = kwargs[field]
+                    if target == "lora":
+                        monitor.data["turbo"] = bool(kwargs.get("strength_model", 0))
             if "vae_name" in kwargs:
                 target = "audio_vae" if "audio_vae" in kwargs["vae_name"] else "video_vae"
                 monitor.data[target] = kwargs["vae_name"]
             quantization = {}
             for key in ("diffusion", "encoder", "video_vae", "audio_vae", "lora"):
-                name = monitor.data.get(key, "")
+                name = monitor.data.get(key) or ""
                 for kind in ("nvfp4_awq", "int8_convrot", "fp8_scaled", "fp32", "bf16"):
                     if kind in name:
                         quantization[key] = kind
@@ -219,7 +221,7 @@ class H3LoadReferenceVideo:
                  if p.is_file() and p.suffix.lower() in (".mp4", ".mov", ".webm", ".mkv")]
         return {"required": {"file": (sorted(files), {"video_upload": True}),
                              "duration": ("FLOAT", {"default": 15, "min": 0.2, "max": 16}),
-                             "megapixels": ("FLOAT", {"default": 0.6, "min": 0.1, "max": 1}),
+                             "megapixels": ("FLOAT", {"default": 0.98, "min": 0.1, "max": 1}),
                              "aspect_ratio": (["16:9", "9:16", "1:1"],),
                              "start": ("FLOAT", {"default": 0, "min": 0}),
                              "include_audio": ("BOOLEAN", {"default": True}),
@@ -230,7 +232,7 @@ class H3LoadReferenceVideo:
     CATEGORY = "H3 Pipeline"
 
     @classmethod
-    def VALIDATE_INPUTS(cls, file, **kwargs):
+    def VALIDATE_INPUTS(cls, file):
         return folder_paths.exists_annotated_filepath(file) or f"Missing video {file}"
 
     def load(self, file, duration, megapixels, aspect_ratio, start, include_audio, context):
@@ -271,8 +273,8 @@ class H3LoadReferenceImage:
     @classmethod
     def INPUT_TYPES(cls):
         return {"required": {"image": nodes.LoadImage.INPUT_TYPES()["required"]["image"],
-                             "megapixels": ("FLOAT", {"default": 0.6, "min": 0.1, "max": 1}),
-                             "ref_image_size": (["match", "max"],), "aspect_ratio": (["16:9", "9:16", "1:1"],),
+                             "megapixels": ("FLOAT", {"default": 0.98, "min": 0.1, "max": 1}),
+                             "ref_image_size": (["max", "match"],), "aspect_ratio": (["16:9", "9:16", "1:1"],),
                              "context": ("STRING", {"forceInput": True})}}
     RETURN_TYPES = ("IMAGE", "STRING")
     FUNCTION = "load"

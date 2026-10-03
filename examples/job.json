@@ -1,18 +1,24 @@
 {
   "prompt": "A realistic full-body dance in a softly lit studio. Preserve the dancer's face and hairstyle, reproduce the choreography, and keep the referenced outfit consistent. Generate synchronized music guided by the dance soundtrack.",
   "reference_video": "assets/dance.mp4",
-  "character_images": ["assets/character.png"],
-  "clothing_images": ["assets/outfit.png"],
+  "character_images": [
+    "assets/character.png"
+  ],
+  "clothing_images": [
+    "assets/outfit.png"
+  ],
   "additional_reference_images": [],
   "reference_audio": null,
   "duration": 15.0,
-  "megapixels": 0.6,
+  "megapixels": 0.98,
   "seed": 123456789,
   "aspect_ratio": "16:9",
-  "ref_image_size": "match",
+  "ref_image_size": "max",
   "include_video_audio": true,
   "reference_video_start": 0.0,
-  "scheduler": "beta",
-  "oom_fallback": true,
-  "timeout": 7200
+  "scheduler": "simple",
+  "oom_fallback": false,
+  "timeout": 21600,
+  "steps": 25,
+  "turbo": false
 }

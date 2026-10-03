@@ -1,0 +1,281 @@
+{
+  "200": {
+    "class_type": "H3Begin",
+    "inputs": {
+      "job_id": "browser",
+      "memory_level": 0
+    }
+  },
+  "201": {
+    "class_type": "H3RecordSettings",
+    "inputs": {
+      "context": [
+        "200",
+        0
+      ],
+      "width": 576,
+      "height": 768,
+      "length": 107,
+      "prompt": "A photorealistic dance fashion video. Use exactly the same woman as <Picture 1>, which is a still extracted from <Video 1>. Preserve this dancer's exact face, long dark hairstyle, skin tone, body proportions and apparent age throughout.\n<Video 1> supplies this same dancer, her choreography, gestures and body movements, the home interior, lighting, static camera and full-body portrait framing. Closely follow this excerpt of her dance. Keep her face and hair unchanged and keep the original room consistent.\n<Picture 2> supplies CLOTHING ONLY: Cream ruffled long-sleeved cropped blouse with wide collar and matching cream short skirt. Dress the dancer from <Picture 1> and <Video 1> in this exact complete outfit from the first frame through the last frame of this section. Match the garment color, fabric, cut and distinctive details. Ignore the photographed clothing model's face, hair, body and background. Do not borrow her identity. Replace the original dancer's white overalls completely with this referenced outfit.\nThe dancer dances naturally with continuous movement. Keep the entire outfit and legs visible. One woman, coherent hands and limbs, no new person, no scene cuts within this section, no different face, no text, no labels, no watermarks, no clothing photo background.\nGenerate synchronized dance music guided by <Audio 1>, paired with <Video 1>.",
+      "seed": 123456789,
+      "diffusion": "diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+      "encoder": "text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+      "ref_image_size": "max",
+      "reference_mapping": "[{\"tag\": \"<Picture 1>\", \"role\": \"dancer identity from source video\", \"path\": \"/workspace/minimax-h3/projects/dance-outfit-sequence/dancer-identity.png\"}, {\"tag\": \"<Picture 2>\", \"role\": \"outfit 2 clothing only\", \"path\": \"/workspace/hostvideo/ref/qNh0S3SXyDGQM6VzOO0kxAlI8ttZ7nOi8w5TWdqp-1.jpg\"}, {\"tag\": \"<Video 1>\", \"role\": \"choreography from 3.750 seconds\", \"path\": \"/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4\"}, {\"tag\": \"<Audio 1>\", \"role\": \"paired dance soundtrack\", \"path\": \"/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4\"}]"
+    }
+  },
+  "127": {
+    "class_type": "H3UNETLoader",
+    "inputs": {
+      "unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+      "weight_dtype": "default",
+      "context": [
+        "201",
+        0
+      ]
+    }
+  },
+  "128": {
+    "class_type": "H3CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+      "type": "minimax",
+      "device": "default",
+      "context": [
+        "201",
+        0
+      ]
+    }
+  },
+  "119": {
+    "class_type": "H3VAELoader",
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors",
+      "context": [
+        "201",
+        0
+      ]
+    }
+  },
+  "120": {
+    "class_type": "H3VAELoader",
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors",
+      "context": [
+        "201",
+        0
+      ]
+    }
+  },
+  "136": {
+    "class_type": "H3ReferenceToVideo",
+    "inputs": {
+      "clip": [
+        "128",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ],
+      "audio_vae": [
+        "120",
+        0
+      ],
+      "prompt": "A photorealistic dance fashion video. Use exactly the same woman as <Picture 1>, which is a still extracted from <Video 1>. Preserve this dancer's exact face, long dark hairstyle, skin tone, body proportions and apparent age throughout.\n<Video 1> supplies this same dancer, her choreography, gestures and body movements, the home interior, lighting, static camera and full-body portrait framing. Closely follow this excerpt of her dance. Keep her face and hair unchanged and keep the original room consistent.\n<Picture 2> supplies CLOTHING ONLY: Cream ruffled long-sleeved cropped blouse with wide collar and matching cream short skirt. Dress the dancer from <Picture 1> and <Video 1> in this exact complete outfit from the first frame through the last frame of this section. Match the garment color, fabric, cut and distinctive details. Ignore the photographed clothing model's face, hair, body and background. Do not borrow her identity. Replace the original dancer's white overalls completely with this referenced outfit.\nThe dancer dances naturally with continuous movement. Keep the entire outfit and legs visible. One woman, coherent hands and limbs, no new person, no scene cuts within this section, no different face, no text, no labels, no watermarks, no clothing photo background.\nGenerate synchronized dance music guided by <Audio 1>, paired with <Video 1>.",
+      "width": 576,
+      "height": 768,
+      "length": 107,
+      "ref_image_size": "max",
+      "context": [
+        "201",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "300",
+        0
+      ],
+      "ref_images.ref_image_1": [
+        "301",
+        0
+      ],
+      "ref_videos.ref_video_0": [
+        "310",
+        0
+      ],
+      "ref_video_audios.ref_video_audio_0": [
+        "310",
+        1
+      ]
+    }
+  },
+  "123": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "res_multistep"
+    }
+  },
+  "124": {
+    "class_type": "H3Scheduler",
+    "inputs": {
+      "model": [
+        "127",
+        0
+      ],
+      "scheduler": "simple",
+      "steps": 25,
+      "denoise": 1.0,
+      "context": [
+        "201",
+        0
+      ]
+    }
+  },
+  "126": {
+    "class_type": "BasicGuider",
+    "inputs": {
+      "model": [
+        "127",
+        0
+      ],
+      "conditioning": [
+        "136",
+        0
+      ]
+    }
+  },
+  "129": {
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": 123456789
+    }
+  },
+  "125": {
+    "class_type": "H3Sampler",
+    "inputs": {
+      "noise": [
+        "129",
+        0
+      ],
+      "guider": [
+        "126",
+        0
+      ],
+      "sampler": [
+        "123",
+        0
+      ],
+      "sigmas": [
+        "124",
+        0
+      ],
+      "latent_image": [
+        "136",
+        1
+      ],
+      "context": [
+        "201",
+        0
+      ]
+    }
+  },
+  "122": {
+    "class_type": "H3VideoDecode",
+    "inputs": {
+      "samples": [
+        "125",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ],
+      "context": [
+        "201",
+        0
+      ]
+    }
+  },
+  "121": {
+    "class_type": "H3AudioDecode",
+    "inputs": {
+      "samples": [
+        "125",
+        0
+      ],
+      "vae": [
+        "120",
+        0
+      ],
+      "video_ready": [
+        "122",
+        0
+      ],
+      "context": [
+        "201",
+        0
+      ]
+    }
+  },
+  "130": {
+    "class_type": "CreateVideo",
+    "inputs": {
+      "images": [
+        "122",
+        0
+      ],
+      "audio": [
+        "121",
+        0
+      ],
+      "fps": 24.0,
+      "bit_depth": 8,
+      "color_space": "sRGB"
+    }
+  },
+  "92": {
+    "class_type": "H3SaveVideo",
+    "inputs": {
+      "video": [
+        "130",
+        0
+      ],
+      "filename_prefix": "h3/browser/clip",
+      "context": [
+        "201",
+        0
+      ],
+      "format": "mp4",
+      "format.codec": "h264",
+      "format.codec.encoding": "re-encode",
+      "format.codec.encoding.crf": 16.0
+    }
+  },
+  "300": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "dance_dancer.png"
+    }
+  },
+  "301": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "dance_outfit_2.png"
+    }
+  },
+  "310": {
+    "class_type": "H3LoadReferenceVideo",
+    "inputs": {
+      "file": "dance_section_2.mp4",
+      "duration": 4.458333333333333,
+      "megapixels": 0.421875,
+      "aspect_ratio": "9:16",
+      "start": 0.0,
+      "include_audio": true,
+      "context": [
+        "200",
+        0
+      ]
+    }
+  }
+}

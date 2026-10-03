@@ -1,0 +1,3384 @@
+{
+  "workflow": {
+    "id": "4c218aa1-0206-4701-a221-d8c5c0c2d73e",
+    "revision": 0,
+    "last_node_id": 310,
+    "last_link_id": 70,
+    "nodes": [
+      {
+        "id": 92,
+        "type": "H3SaveVideo",
+        "pos": [
+          3287.9,
+          130
+        ],
+        "size": [
+          270,
+          174
+        ],
+        "flags": {},
+        "order": 18,
+        "mode": 0,
+        "inputs": [
+          {
+            "localized_name": "video",
+            "name": "video",
+            "type": "VIDEO",
+            "link": 36
+          },
+          {
+            "localized_name": "context",
+            "name": "context",
+            "type": "STRING",
+            "link": 37
+          },
+          {
+            "localized_name": "filename_prefix",
+            "name": "filename_prefix",
+            "type": "STRING",
+            "widget": {
+              "name": "filename_prefix"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "format",
+            "name": "format",
+            "type": "COMFY_DYNAMICCOMBO_V3",
+            "widget": {
+              "name": "format"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "codec",
+            "name": "format.codec",
+            "type": "COMFY_DYNAMICCOMBO_V3",
+            "widget": {
+              "name": "format.codec"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "encoding",
+            "name": "format.codec.encoding",
+            "shape": 7,
+            "type": "COMFY_DYNAMICCOMBO_V3",
+            "widget": {
+              "name": "format.codec.encoding"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "crf",
+            "name": "format.codec.encoding.crf",
+            "type": "FLOAT",
+            "widget": {
+              "name": "format.codec.encoding.crf"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "codec",
+            "name": "codec",
+            "shape": 7,
+            "type": "COMFY_DYNAMICCOMBO_V3",
+            "widget": {
+              "name": "codec"
+            },
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "localized_name": "video",
+            "name": "video",
+            "type": "VIDEO",
+            "links": null
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "H3SaveVideo"
+        },
+        "widgets_values": [
+          "h3/browser/clip",
+          "mp4",
+          "h264",
+          "re-encode",
+          16,
+          "auto"
+        ],
+        "widgets_values_named": {
+          "filename_prefix": "h3/browser/clip",
+          "format": "mp4",
+          "format.codec": "h264",
+          "format.codec.encoding": "re-encode",
+          "format.codec.encoding.crf": 16,
+          "codec": "auto"
+        }
+      },
+      {
+        "id": 119,
+        "type": "H3VAELoader",
+        "pos": [
+          980,
+          130
+        ],
+        "size": [
+          270,
+          58
+        ],
+        "flags": {},
+        "order": 7,
+        "mode": 0,
+        "inputs": [
+          {
+            "localized_name": "context",
+            "name": "context",
+            "type": "STRING",
+            "link": 38
+          },
+          {
+            "localized_name": "vae_name",
+            "name": "vae_name",
+            "type": "COMBO",
+            "widget": {
+              "name": "vae_name"
+            },
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "localized_name": "VAE",
+            "name": "VAE",
+            "type": "VAE",
+            "links": [
+              45,
+              62
+            ]
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "H3VAELoader"
+        },
+        "widgets_values": [
+          "minimax_h3_video_vae_int8_convrot.safetensors"
+        ],
+        "widgets_values_named": {
+          "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+        }
+      },
+      {
+        "id": 120,
+        "type": "H3VAELoader",
+        "pos": [
+          980,
+          318
+        ],
+        "size": [
+          270,
+          58
+        ],
+        "flags": {},
+        "order": 8,
+        "mode": 0,
+        "inputs": [
+          {
+            "localized_name": "context",
+            "name": "context",
+            "type": "STRING",
+            "link": 39
+          },
+          {
+            "localized_name": "vae_name",
+            "name": "vae_name",
+            "type": "COMBO",
+            "widget": {
+              "name": "vae_name"
+            },
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "localized_name": "VAE",
+            "name": "VAE",
+            "type": "VAE",
+            "links": [
+              41,
+              63
+            ]
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "H3VAELoader"
+        },
+        "widgets_values": [
+          "minimax_h3_audio_vae_fp32.safetensors"
+        ],
+        "widgets_values_named": {
+          "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+        }
+      },
+      {
+        "id": 121,
+        "type": "H3AudioDecode",
+        "pos": [
+          2665.9,
+          130
+        ],
+        "size": [
+          152,
+          86
+        ],
+        "flags": {},
+        "order": 16,
+        "mode": 0,
+        "inputs": [
+          {
+            "localized_name": "samples",
+            "name": "samples",
+            "type": "LATENT",
+            "link": 40
+          },
+          {
+            "localized_name": "vae",
+            "name": "vae",
+            "type": "VAE",
+            "link": 41
+          },
+          {
+            "localized_name": "context",
+            "name": "context",
+            "type": "STRING",
+            "link": 43
+          },
+          {
+            "localized_name": "video_ready",
+            "name": "video_ready",
+            "type": "IMAGE",
+            "link": 42
+          }
+        ],
+        "outputs": [
+          {
+            "localized_name": "AUDIO",
+            "name": "AUDIO",
+            "type": "AUDIO",
+            "links": [
+              60
+            ]
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "H3AudioDecode"
+        }
+      },
+      {
+        "id": 122,
+        "type": "H3VideoDecode",
+        "pos": [
+          2418,
+          130
+        ],
+        "size": [
+          147.9,
+          66
+        ],
+        "flags": {},
+        "order": 15,
+        "mode": 0,
+        "inputs": [
+          {
+            "localized_name": "samples",
+            "name": "samples",
+            "type": "LATENT",
+            "link": 44
+          },
+          {
+            "localized_name": "vae",
+            "name": "vae",
+            "type": "VAE",
+            "link": 45
+          },
+          {
+            "localized_name": "context",
+            "name": "context",
+            "type": "STRING",
+            "link": 46
+          }
+        ],
+        "outputs": [
+          {
+            "localized_name": "IMAGE",
+            "name": "IMAGE",
+            "type": "IMAGE",
+            "links": [
+              42,
+              59
+            ]
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "H3VideoDecode"
+        }
+      },
+      {
+        "id": 123,
+        "type": "KSamplerSelect",
+        "pos": [
+          100,
+          130
+        ],
+        "size": [
+          270,
+          58
+        ],
+        "flags": {},
+        "order": 0,
+        "mode": 0,
+        "inputs": [
+          {
+            "localized_name": "sampler_name",
+            "name": "sampler_name",
+            "type": "COMBO",
+            "widget": {
+              "name": "sampler_name"
+            },
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "localized_name": "SAMPLER",
+            "name": "SAMPLER",
+            "type": "SAMPLER",
+            "links": [
+              51
+            ]
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "KSamplerSelect"
+        },
+        "widgets_values": [
+          "res_multistep"
+        ],
+        "widgets_values_named": {
+          "sampler_name": "res_multistep"
+        }
+      },
+      {
+        "id": 124,
+        "type": "H3Scheduler",
+        "pos": [
+          1350,
+          130
+        ],
+        "size": [
+          270,
+          126
+        ],
+        "flags": {},
+        "order": 11,
+        "mode": 0,
+        "inputs": [
+          {
+            "localized_name": "model",
+            "name": "model",
+            "type": "MODEL",
+            "link": 47
+          },
+          {
+            "localized_name": "context",
+            "name": "context",
+            "type": "STRING",
+            "link": 48
+          },
+          {
+            "localized_name": "scheduler",
+            "name": "scheduler",
+            "type": "COMBO",
+            "widget": {
+              "name": "scheduler"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "steps",
+            "name": "steps",
+            "type": "INT",
+            "widget": {
+              "name": "steps"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "denoise",
+            "name": "denoise",
+            "type": "FLOAT",
+            "widget": {
+              "name": "denoise"
+            },
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "localized_name": "SIGMAS",
+            "name": "SIGMAS",
+            "type": "SIGMAS",
+            "links": [
+              52
+            ]
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "H3Scheduler"
+        },
+        "widgets_values": [
+          "simple",
+          25,
+          1
+        ],
+        "widgets_values_named": {
+          "scheduler": "simple",
+          "steps": 25,
+          "denoise": 1
+        }
+      },
+      {
+        "id": 125,
+        "type": "H3Sampler",
+        "pos": [
+          2109,
+          130
+        ],
+        "size": [
+          209,
+          126
+        ],
+        "flags": {},
+        "order": 14,
+        "mode": 0,
+        "inputs": [
+          {
+            "localized_name": "noise",
+            "name": "noise",
+            "type": "NOISE",
+            "link": 49
+          },
+          {
+            "localized_name": "guider",
+            "name": "guider",
+            "type": "GUIDER",
+            "link": 50
+          },
+          {
+            "localized_name": "sampler",
+            "name": "sampler",
+            "type": "SAMPLER",
+            "link": 51
+          },
+          {
+            "localized_name": "sigmas",
+            "name": "sigmas",
+            "type": "SIGMAS",
+            "link": 52
+          },
+          {
+            "localized_name": "latent_image",
+            "name": "latent_image",
+            "type": "LATENT",
+            "link": 53
+          },
+          {
+            "localized_name": "context",
+            "name": "context",
+            "type": "STRING",
+            "link": 54
+          }
+        ],
+        "outputs": [
+          {
+            "localized_name": "output",
+            "name": "output",
+            "type": "LATENT",
+            "links": [
+              40,
+              44
+            ]
+          },
+          {
+            "localized_name": "denoised_output",
+            "name": "denoised_output",
+            "type": "LATENT",
+            "links": null
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "H3Sampler"
+        }
+      },
+      {
+        "id": 126,
+        "type": "BasicGuider",
+        "pos": [
+          1850,
+          130
+        ],
+        "size": [
+          159,
+          46
+        ],
+        "flags": {},
+        "order": 13,
+        "mode": 0,
+        "inputs": [
+          {
+            "localized_name": "model",
+            "name": "model",
+            "type": "MODEL",
+            "link": 55
+          },
+          {
+            "localized_name": "conditioning",
+            "name": "conditioning",
+            "type": "CONDITIONING",
+            "link": 56
+          }
+        ],
+        "outputs": [
+          {
+            "localized_name": "GUIDER",
+            "name": "GUIDER",
+            "type": "GUIDER",
+            "links": [
+              50
+            ]
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "BasicGuider"
+        }
+      },
+      {
+        "id": 127,
+        "type": "H3UNETLoader",
+        "pos": [
+          980,
+          506
+        ],
+        "size": [
+          270,
+          82
+        ],
+        "flags": {},
+        "order": 9,
+        "mode": 0,
+        "inputs": [
+          {
+            "localized_name": "context",
+            "name": "context",
+            "type": "STRING",
+            "link": 57
+          },
+          {
+            "localized_name": "unet_name",
+            "name": "unet_name",
+            "type": "COMBO",
+            "widget": {
+              "name": "unet_name"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "weight_dtype",
+            "name": "weight_dtype",
+            "type": "COMBO",
+            "widget": {
+              "name": "weight_dtype"
+            },
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "localized_name": "MODEL",
+            "name": "MODEL",
+            "type": "MODEL",
+            "links": [
+              47,
+              55
+            ]
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "H3UNETLoader"
+        },
+        "widgets_values": [
+          "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+          "default"
+        ],
+        "widgets_values_named": {
+          "unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+          "weight_dtype": "default"
+        }
+      },
+      {
+        "id": 128,
+        "type": "H3CLIPLoader",
+        "pos": [
+          980,
+          718
+        ],
+        "size": [
+          270,
+          106
+        ],
+        "flags": {},
+        "order": 10,
+        "mode": 0,
+        "inputs": [
+          {
+            "localized_name": "context",
+            "name": "context",
+            "type": "STRING",
+            "link": 58
+          },
+          {
+            "localized_name": "clip_name",
+            "name": "clip_name",
+            "type": "COMBO",
+            "widget": {
+              "name": "clip_name"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "type",
+            "name": "type",
+            "type": "COMBO",
+            "widget": {
+              "name": "type"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "device",
+            "name": "device",
+            "shape": 7,
+            "type": "COMBO",
+            "widget": {
+              "name": "device"
+            },
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "localized_name": "CLIP",
+            "name": "CLIP",
+            "type": "CLIP",
+            "links": [
+              61
+            ]
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "H3CLIPLoader"
+        },
+        "widgets_values": [
+          "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+          "minimax",
+          "default"
+        ],
+        "widgets_values_named": {
+          "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+          "type": "minimax",
+          "device": "default"
+        }
+      },
+      {
+        "id": 129,
+        "type": "RandomNoise",
+        "pos": [
+          100,
+          318
+        ],
+        "size": [
+          270,
+          82
+        ],
+        "flags": {},
+        "order": 1,
+        "mode": 0,
+        "inputs": [
+          {
+            "localized_name": "noise_seed",
+            "name": "noise_seed",
+            "type": "INT",
+            "widget": {
+              "name": "noise_seed"
+            },
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "localized_name": "NOISE",
+            "name": "NOISE",
+            "type": "NOISE",
+            "links": [
+              49
+            ]
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "RandomNoise"
+        },
+        "widgets_values": [
+          123456789,
+          "fixed"
+        ],
+        "widgets_values_named": {
+          "noise_seed": 123456789,
+          "control_after_generate": "fixed"
+        }
+      },
+      {
+        "id": 130,
+        "type": "CreateVideo",
+        "pos": [
+          2917.9,
+          130
+        ],
+        "size": [
+          270,
+          150
+        ],
+        "flags": {},
+        "order": 17,
+        "mode": 0,
+        "inputs": [
+          {
+            "localized_name": "images",
+            "name": "images",
+            "type": "IMAGE",
+            "link": 59
+          },
+          {
+            "localized_name": "audio",
+            "name": "audio",
+            "shape": 7,
+            "type": "AUDIO",
+            "link": 60
+          },
+          {
+            "localized_name": "fps",
+            "name": "fps",
+            "type": "FLOAT",
+            "widget": {
+              "name": "fps"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "bit_depth",
+            "name": "bit_depth",
+            "shape": 7,
+            "type": "COMBO",
+            "widget": {
+              "name": "bit_depth"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "color_space",
+            "name": "color_space",
+            "shape": 7,
+            "type": "COMBO",
+            "widget": {
+              "name": "color_space"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "codec",
+            "name": "codec",
+            "shape": 7,
+            "type": "COMBO",
+            "widget": {
+              "name": "codec"
+            },
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "localized_name": "VIDEO",
+            "name": "VIDEO",
+            "type": "VIDEO",
+            "links": [
+              36
+            ]
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "CreateVideo"
+        },
+        "widgets_values": [
+          24,
+          8,
+          "sRGB",
+          "none"
+        ],
+        "widgets_values_named": {
+          "fps": 24,
+          "bit_depth": 8,
+          "color_space": "sRGB",
+          "codec": "none"
+        }
+      },
+      {
+        "id": 136,
+        "type": "H3ReferenceToVideo",
+        "pos": [
+          1350,
+          386
+        ],
+        "size": [
+          400,
+          404
+        ],
+        "flags": {},
+        "order": 12,
+        "mode": 0,
+        "inputs": [
+          {
+            "localized_name": "clip",
+            "name": "clip",
+            "type": "CLIP",
+            "link": 61
+          },
+          {
+            "localized_name": "context",
+            "name": "context",
+            "type": "STRING",
+            "link": 64
+          },
+          {
+            "localized_name": "vae",
+            "name": "vae",
+            "shape": 7,
+            "type": "VAE",
+            "link": 62
+          },
+          {
+            "localized_name": "audio_vae",
+            "name": "audio_vae",
+            "shape": 7,
+            "type": "VAE",
+            "link": 63
+          },
+          {
+            "localized_name": "ref_image_0",
+            "name": "ref_images.ref_image_0",
+            "shape": 7,
+            "type": "IMAGE",
+            "link": 65
+          },
+          {
+            "localized_name": "ref_image_1",
+            "name": "ref_images.ref_image_1",
+            "shape": 7,
+            "type": "IMAGE",
+            "link": 66
+          },
+          {
+            "localized_name": "ref_image_2",
+            "name": "ref_images.ref_image_2",
+            "shape": 7,
+            "type": "IMAGE",
+            "link": null
+          },
+          {
+            "localized_name": "ref_video_0",
+            "name": "ref_videos.ref_video_0",
+            "shape": 7,
+            "type": "IMAGE",
+            "link": 67
+          },
+          {
+            "localized_name": "ref_video_1",
+            "name": "ref_videos.ref_video_1",
+            "shape": 7,
+            "type": "IMAGE",
+            "link": null
+          },
+          {
+            "localized_name": "ref_video_audio_0",
+            "name": "ref_video_audios.ref_video_audio_0",
+            "shape": 7,
+            "type": "AUDIO",
+            "link": 68
+          },
+          {
+            "localized_name": "ref_video_audio_1",
+            "name": "ref_video_audios.ref_video_audio_1",
+            "shape": 7,
+            "type": "AUDIO",
+            "link": null
+          },
+          {
+            "localized_name": "ref_audio_0",
+            "name": "ref_audios.ref_audio_0",
+            "shape": 7,
+            "type": "AUDIO",
+            "link": null
+          },
+          {
+            "localized_name": "prompt",
+            "name": "prompt",
+            "type": "STRING",
+            "widget": {
+              "name": "prompt"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "width",
+            "name": "width",
+            "type": "INT",
+            "widget": {
+              "name": "width"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "height",
+            "name": "height",
+            "type": "INT",
+            "widget": {
+              "name": "height"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "length",
+            "name": "length",
+            "type": "INT",
+            "widget": {
+              "name": "length"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "ref_image_size",
+            "name": "ref_image_size",
+            "type": "COMBO",
+            "widget": {
+              "name": "ref_image_size"
+            },
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "localized_name": "positive",
+            "name": "positive",
+            "type": "CONDITIONING",
+            "links": [
+              56
+            ]
+          },
+          {
+            "localized_name": "LATENT",
+            "name": "LATENT",
+            "type": "LATENT",
+            "links": [
+              53
+            ]
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "H3ReferenceToVideo"
+        },
+        "widgets_values": [
+          "A photorealistic dance fashion video. Use exactly the same woman as <Picture 1>, which is a still extracted from <Video 1>. Preserve this dancer's exact face, long dark hairstyle, skin tone, body proportions and apparent age throughout.\n<Video 1> supplies this same dancer, her choreography, gestures and body movements, the home interior, lighting, static camera and full-body portrait framing. Closely follow this excerpt of her dance. Keep her face and hair unchanged and keep the original room consistent.\n<Picture 2> supplies CLOTHING ONLY: Cream ruffled long-sleeved cropped blouse with wide collar and matching cream short skirt. Dress the dancer from <Picture 1> and <Video 1> in this exact complete outfit from the first frame through the last frame of this section. Match the garment color, fabric, cut and distinctive details. Ignore the photographed clothing model's face, hair, body and background. Do not borrow her identity. Replace the original dancer's white overalls completely with this referenced outfit.\nThe dancer dances naturally with continuous movement. Keep the entire outfit and legs visible. One woman, coherent hands and limbs, no new person, no scene cuts within this section, no different face, no text, no labels, no watermarks, no clothing photo background.\nGenerate synchronized dance music guided by <Audio 1>, paired with <Video 1>.",
+          576,
+          768,
+          107,
+          "max"
+        ],
+        "widgets_values_named": {
+          "prompt": "A photorealistic dance fashion video. Use exactly the same woman as <Picture 1>, which is a still extracted from <Video 1>. Preserve this dancer's exact face, long dark hairstyle, skin tone, body proportions and apparent age throughout.\n<Video 1> supplies this same dancer, her choreography, gestures and body movements, the home interior, lighting, static camera and full-body portrait framing. Closely follow this excerpt of her dance. Keep her face and hair unchanged and keep the original room consistent.\n<Picture 2> supplies CLOTHING ONLY: Cream ruffled long-sleeved cropped blouse with wide collar and matching cream short skirt. Dress the dancer from <Picture 1> and <Video 1> in this exact complete outfit from the first frame through the last frame of this section. Match the garment color, fabric, cut and distinctive details. Ignore the photographed clothing model's face, hair, body and background. Do not borrow her identity. Replace the original dancer's white overalls completely with this referenced outfit.\nThe dancer dances naturally with continuous movement. Keep the entire outfit and legs visible. One woman, coherent hands and limbs, no new person, no scene cuts within this section, no different face, no text, no labels, no watermarks, no clothing photo background.\nGenerate synchronized dance music guided by <Audio 1>, paired with <Video 1>.",
+          "width": 576,
+          "height": 768,
+          "length": 107,
+          "ref_image_size": "max"
+        }
+      },
+      {
+        "id": 200,
+        "type": "H3Begin",
+        "pos": [
+          100,
+          530
+        ],
+        "size": [
+          270,
+          82
+        ],
+        "flags": {},
+        "order": 2,
+        "mode": 0,
+        "inputs": [
+          {
+            "localized_name": "job_id",
+            "name": "job_id",
+            "type": "STRING",
+            "widget": {
+              "name": "job_id"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "memory_level",
+            "name": "memory_level",
+            "type": "INT",
+            "widget": {
+              "name": "memory_level"
+            },
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "localized_name": "STRING",
+            "name": "STRING",
+            "type": "STRING",
+            "links": [
+              69,
+              70
+            ]
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "H3Begin"
+        },
+        "widgets_values": [
+          "browser",
+          0
+        ],
+        "widgets_values_named": {
+          "job_id": "browser",
+          "memory_level": 0
+        }
+      },
+      {
+        "id": 201,
+        "type": "H3RecordSettings",
+        "pos": [
+          480,
+          130
+        ],
+        "size": [
+          400,
+          310
+        ],
+        "flags": {},
+        "order": 5,
+        "mode": 0,
+        "inputs": [
+          {
+            "localized_name": "context",
+            "name": "context",
+            "type": "STRING",
+            "link": 69
+          },
+          {
+            "localized_name": "width",
+            "name": "width",
+            "type": "INT",
+            "widget": {
+              "name": "width"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "height",
+            "name": "height",
+            "type": "INT",
+            "widget": {
+              "name": "height"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "length",
+            "name": "length",
+            "type": "INT",
+            "widget": {
+              "name": "length"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "prompt",
+            "name": "prompt",
+            "type": "STRING",
+            "widget": {
+              "name": "prompt"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "seed",
+            "name": "seed",
+            "type": "INT",
+            "widget": {
+              "name": "seed"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "diffusion",
+            "name": "diffusion",
+            "type": "STRING",
+            "widget": {
+              "name": "diffusion"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "encoder",
+            "name": "encoder",
+            "type": "STRING",
+            "widget": {
+              "name": "encoder"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "ref_image_size",
+            "name": "ref_image_size",
+            "type": "COMBO",
+            "widget": {
+              "name": "ref_image_size"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "reference_mapping",
+            "name": "reference_mapping",
+            "type": "STRING",
+            "widget": {
+              "name": "reference_mapping"
+            },
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "localized_name": "STRING",
+            "name": "STRING",
+            "type": "STRING",
+            "links": [
+              37,
+              38,
+              39,
+              43,
+              46,
+              48,
+              54,
+              57,
+              58,
+              64
+            ]
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "H3RecordSettings"
+        },
+        "widgets_values": [
+          576,
+          768,
+          107,
+          "A photorealistic dance fashion video. Use exactly the same woman as <Picture 1>, which is a still extracted from <Video 1>. Preserve this dancer's exact face, long dark hairstyle, skin tone, body proportions and apparent age throughout.\n<Video 1> supplies this same dancer, her choreography, gestures and body movements, the home interior, lighting, static camera and full-body portrait framing. Closely follow this excerpt of her dance. Keep her face and hair unchanged and keep the original room consistent.\n<Picture 2> supplies CLOTHING ONLY: Cream ruffled long-sleeved cropped blouse with wide collar and matching cream short skirt. Dress the dancer from <Picture 1> and <Video 1> in this exact complete outfit from the first frame through the last frame of this section. Match the garment color, fabric, cut and distinctive details. Ignore the photographed clothing model's face, hair, body and background. Do not borrow her identity. Replace the original dancer's white overalls completely with this referenced outfit.\nThe dancer dances naturally with continuous movement. Keep the entire outfit and legs visible. One woman, coherent hands and limbs, no new person, no scene cuts within this section, no different face, no text, no labels, no watermarks, no clothing photo background.\nGenerate synchronized dance music guided by <Audio 1>, paired with <Video 1>.",
+          123456789,
+          "diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+          "text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+          "max",
+          "[{\"tag\": \"<Picture 1>\", \"role\": \"dancer identity from source video\", \"path\": \"/workspace/minimax-h3/projects/dance-outfit-sequence/dancer-identity.png\"}, {\"tag\": \"<Picture 2>\", \"role\": \"outfit 2 clothing only\", \"path\": \"/workspace/hostvideo/ref/qNh0S3SXyDGQM6VzOO0kxAlI8ttZ7nOi8w5TWdqp-1.jpg\"}, {\"tag\": \"<Video 1>\", \"role\": \"choreography from 3.750 seconds\", \"path\": \"/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4\"}, {\"tag\": \"<Audio 1>\", \"role\": \"paired dance soundtrack\", \"path\": \"/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4\"}]"
+        ],
+        "widgets_values_named": {
+          "width": 576,
+          "height": 768,
+          "length": 107,
+          "prompt": "A photorealistic dance fashion video. Use exactly the same woman as <Picture 1>, which is a still extracted from <Video 1>. Preserve this dancer's exact face, long dark hairstyle, skin tone, body proportions and apparent age throughout.\n<Video 1> supplies this same dancer, her choreography, gestures and body movements, the home interior, lighting, static camera and full-body portrait framing. Closely follow this excerpt of her dance. Keep her face and hair unchanged and keep the original room consistent.\n<Picture 2> supplies CLOTHING ONLY: Cream ruffled long-sleeved cropped blouse with wide collar and matching cream short skirt. Dress the dancer from <Picture 1> and <Video 1> in this exact complete outfit from the first frame through the last frame of this section. Match the garment color, fabric, cut and distinctive details. Ignore the photographed clothing model's face, hair, body and background. Do not borrow her identity. Replace the original dancer's white overalls completely with this referenced outfit.\nThe dancer dances naturally with continuous movement. Keep the entire outfit and legs visible. One woman, coherent hands and limbs, no new person, no scene cuts within this section, no different face, no text, no labels, no watermarks, no clothing photo background.\nGenerate synchronized dance music guided by <Audio 1>, paired with <Video 1>.",
+          "seed": 123456789,
+          "diffusion": "diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+          "encoder": "text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+          "ref_image_size": "max",
+          "reference_mapping": "[{\"tag\": \"<Picture 1>\", \"role\": \"dancer identity from source video\", \"path\": \"/workspace/minimax-h3/projects/dance-outfit-sequence/dancer-identity.png\"}, {\"tag\": \"<Picture 2>\", \"role\": \"outfit 2 clothing only\", \"path\": \"/workspace/hostvideo/ref/qNh0S3SXyDGQM6VzOO0kxAlI8ttZ7nOi8w5TWdqp-1.jpg\"}, {\"tag\": \"<Video 1>\", \"role\": \"choreography from 3.750 seconds\", \"path\": \"/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4\"}, {\"tag\": \"<Audio 1>\", \"role\": \"paired dance soundtrack\", \"path\": \"/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4\"}]"
+        }
+      },
+      {
+        "id": 300,
+        "type": "LoadImage",
+        "pos": [
+          100,
+          742
+        ],
+        "size": [
+          280,
+          102
+        ],
+        "flags": {},
+        "order": 3,
+        "mode": 0,
+        "inputs": [
+          {
+            "localized_name": "image",
+            "name": "image",
+            "type": "COMBO",
+            "widget": {
+              "name": "image"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "choose file to upload",
+            "name": "upload",
+            "type": "IMAGEUPLOAD",
+            "widget": {
+              "name": "upload"
+            },
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "localized_name": "IMAGE",
+            "name": "IMAGE",
+            "type": "IMAGE",
+            "links": [
+              65
+            ]
+          },
+          {
+            "localized_name": "MASK",
+            "name": "MASK",
+            "type": "MASK",
+            "links": null
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "LoadImage"
+        },
+        "widgets_values": [
+          "dance_dancer.png",
+          "image"
+        ],
+        "widgets_values_named": {
+          "image": "dance_dancer.png",
+          "upload": "image"
+        }
+      },
+      {
+        "id": 301,
+        "type": "LoadImage",
+        "pos": [
+          100,
+          974
+        ],
+        "size": [
+          280,
+          102
+        ],
+        "flags": {},
+        "order": 4,
+        "mode": 0,
+        "inputs": [
+          {
+            "localized_name": "image",
+            "name": "image",
+            "type": "COMBO",
+            "widget": {
+              "name": "image"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "choose file to upload",
+            "name": "upload",
+            "type": "IMAGEUPLOAD",
+            "widget": {
+              "name": "upload"
+            },
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "localized_name": "IMAGE",
+            "name": "IMAGE",
+            "type": "IMAGE",
+            "links": [
+              66
+            ]
+          },
+          {
+            "localized_name": "MASK",
+            "name": "MASK",
+            "type": "MASK",
+            "links": null
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "LoadImage"
+        },
+        "widgets_values": [
+          "dance_outfit_2.png",
+          "image"
+        ],
+        "widgets_values_named": {
+          "image": "dance_outfit_2.png",
+          "upload": "image"
+        }
+      },
+      {
+        "id": 310,
+        "type": "H3LoadReferenceVideo",
+        "pos": [
+          480,
+          570
+        ],
+        "size": [
+          270,
+          594
+        ],
+        "flags": {},
+        "order": 6,
+        "mode": 0,
+        "inputs": [
+          {
+            "localized_name": "context",
+            "name": "context",
+            "type": "STRING",
+            "link": 70
+          },
+          {
+            "localized_name": "file",
+            "name": "file",
+            "type": "COMBO",
+            "widget": {
+              "name": "file"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "duration",
+            "name": "duration",
+            "type": "FLOAT",
+            "widget": {
+              "name": "duration"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "megapixels",
+            "name": "megapixels",
+            "type": "FLOAT",
+            "widget": {
+              "name": "megapixels"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "aspect_ratio",
+            "name": "aspect_ratio",
+            "type": "COMBO",
+            "widget": {
+              "name": "aspect_ratio"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "start",
+            "name": "start",
+            "type": "FLOAT",
+            "widget": {
+              "name": "start"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "include_audio",
+            "name": "include_audio",
+            "type": "BOOLEAN",
+            "widget": {
+              "name": "include_audio"
+            },
+            "link": null
+          },
+          {
+            "localized_name": "upload",
+            "name": "upload",
+            "type": "IMAGEUPLOAD",
+            "widget": {
+              "name": "upload"
+            },
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "localized_name": "frames",
+            "name": "frames",
+            "type": "IMAGE",
+            "links": [
+              67
+            ]
+          },
+          {
+            "localized_name": "paired_audio",
+            "name": "paired_audio",
+            "type": "AUDIO",
+            "links": [
+              68
+            ]
+          },
+          {
+            "localized_name": "metadata",
+            "name": "metadata",
+            "type": "STRING",
+            "links": null
+          }
+        ],
+        "properties": {
+          "Node name for S&R": "H3LoadReferenceVideo"
+        },
+        "widgets_values": [
+          "dance_section_2.mp4",
+          4.5,
+          0.4,
+          "9:16",
+          0,
+          true,
+          "image"
+        ],
+        "widgets_values_named": {
+          "file": "dance_section_2.mp4",
+          "duration": 4.5,
+          "megapixels": 0.4,
+          "aspect_ratio": "9:16",
+          "start": 0,
+          "include_audio": true,
+          "upload": "image"
+        }
+      }
+    ],
+    "links": [
+      [
+        36,
+        130,
+        0,
+        92,
+        0,
+        "VIDEO"
+      ],
+      [
+        37,
+        201,
+        0,
+        92,
+        1,
+        "STRING"
+      ],
+      [
+        38,
+        201,
+        0,
+        119,
+        0,
+        "STRING"
+      ],
+      [
+        39,
+        201,
+        0,
+        120,
+        0,
+        "STRING"
+      ],
+      [
+        40,
+        125,
+        0,
+        121,
+        0,
+        "LATENT"
+      ],
+      [
+        41,
+        120,
+        0,
+        121,
+        1,
+        "VAE"
+      ],
+      [
+        42,
+        122,
+        0,
+        121,
+        3,
+        "IMAGE"
+      ],
+      [
+        43,
+        201,
+        0,
+        121,
+        2,
+        "STRING"
+      ],
+      [
+        44,
+        125,
+        0,
+        122,
+        0,
+        "LATENT"
+      ],
+      [
+        45,
+        119,
+        0,
+        122,
+        1,
+        "VAE"
+      ],
+      [
+        46,
+        201,
+        0,
+        122,
+        2,
+        "STRING"
+      ],
+      [
+        47,
+        127,
+        0,
+        124,
+        0,
+        "MODEL"
+      ],
+      [
+        48,
+        201,
+        0,
+        124,
+        1,
+        "STRING"
+      ],
+      [
+        49,
+        129,
+        0,
+        125,
+        0,
+        "NOISE"
+      ],
+      [
+        50,
+        126,
+        0,
+        125,
+        1,
+        "GUIDER"
+      ],
+      [
+        51,
+        123,
+        0,
+        125,
+        2,
+        "SAMPLER"
+      ],
+      [
+        52,
+        124,
+        0,
+        125,
+        3,
+        "SIGMAS"
+      ],
+      [
+        53,
+        136,
+        1,
+        125,
+        4,
+        "LATENT"
+      ],
+      [
+        54,
+        201,
+        0,
+        125,
+        5,
+        "STRING"
+      ],
+      [
+        55,
+        127,
+        0,
+        126,
+        0,
+        "MODEL"
+      ],
+      [
+        56,
+        136,
+        0,
+        126,
+        1,
+        "CONDITIONING"
+      ],
+      [
+        57,
+        201,
+        0,
+        127,
+        0,
+        "STRING"
+      ],
+      [
+        58,
+        201,
+        0,
+        128,
+        0,
+        "STRING"
+      ],
+      [
+        59,
+        122,
+        0,
+        130,
+        0,
+        "IMAGE"
+      ],
+      [
+        60,
+        121,
+        0,
+        130,
+        1,
+        "AUDIO"
+      ],
+      [
+        61,
+        128,
+        0,
+        136,
+        0,
+        "CLIP"
+      ],
+      [
+        62,
+        119,
+        0,
+        136,
+        2,
+        "VAE"
+      ],
+      [
+        63,
+        120,
+        0,
+        136,
+        3,
+        "VAE"
+      ],
+      [
+        64,
+        201,
+        0,
+        136,
+        1,
+        "STRING"
+      ],
+      [
+        65,
+        300,
+        0,
+        136,
+        4,
+        "IMAGE"
+      ],
+      [
+        66,
+        301,
+        0,
+        136,
+        5,
+        "IMAGE"
+      ],
+      [
+        67,
+        310,
+        0,
+        136,
+        7,
+        "IMAGE"
+      ],
+      [
+        68,
+        310,
+        1,
+        136,
+        9,
+        "AUDIO"
+      ],
+      [
+        69,
+        200,
+        0,
+        201,
+        0,
+        "STRING"
+      ],
+      [
+        70,
+        200,
+        0,
+        310,
+        0,
+        "STRING"
+      ]
+    ],
+    "groups": [],
+    "config": {},
+    "extra": {
+      "ds": {
+        "scale": 0.9,
+        "offset": [
+          416,
+          110
+        ]
+      }
+    },
+    "version": 0.4
+  },
+  "prompt": {
+    "workflow": {
+      "id": "4c218aa1-0206-4701-a221-d8c5c0c2d73e",
+      "revision": 0,
+      "last_node_id": 310,
+      "last_link_id": 70,
+      "nodes": [
+        {
+          "id": 92,
+          "type": "H3SaveVideo",
+          "pos": [
+            3287.9,
+            130
+          ],
+          "size": [
+            270,
+            174
+          ],
+          "flags": {},
+          "order": 18,
+          "mode": 0,
+          "inputs": [
+            {
+              "name": "video",
+              "type": "VIDEO",
+              "link": 36
+            },
+            {
+              "name": "context",
+              "type": "STRING",
+              "link": 37
+            }
+          ],
+          "outputs": [
+            {
+              "name": "video",
+              "type": "VIDEO",
+              "links": null
+            }
+          ],
+          "properties": {
+            "Node name for S&R": "H3SaveVideo"
+          },
+          "widgets_values": [
+            "h3/browser/clip",
+            "mp4",
+            "h264",
+            "re-encode",
+            16,
+            "auto"
+          ],
+          "widgets_values_named": {
+            "filename_prefix": "h3/browser/clip",
+            "format": "mp4",
+            "format.codec": "h264",
+            "format.codec.encoding": "re-encode",
+            "format.codec.encoding.crf": 16,
+            "codec": "auto"
+          }
+        },
+        {
+          "id": 119,
+          "type": "H3VAELoader",
+          "pos": [
+            980,
+            130
+          ],
+          "size": [
+            270,
+            58
+          ],
+          "flags": {},
+          "order": 7,
+          "mode": 0,
+          "inputs": [
+            {
+              "name": "context",
+              "type": "STRING",
+              "link": 38
+            }
+          ],
+          "outputs": [
+            {
+              "name": "VAE",
+              "type": "VAE",
+              "links": [
+                45,
+                62
+              ]
+            }
+          ],
+          "properties": {
+            "Node name for S&R": "H3VAELoader"
+          },
+          "widgets_values": [
+            "minimax_h3_video_vae_int8_convrot.safetensors"
+          ],
+          "widgets_values_named": {
+            "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+          }
+        },
+        {
+          "id": 120,
+          "type": "H3VAELoader",
+          "pos": [
+            980,
+            318
+          ],
+          "size": [
+            270,
+            58
+          ],
+          "flags": {},
+          "order": 8,
+          "mode": 0,
+          "inputs": [
+            {
+              "name": "context",
+              "type": "STRING",
+              "link": 39
+            }
+          ],
+          "outputs": [
+            {
+              "name": "VAE",
+              "type": "VAE",
+              "links": [
+                41,
+                63
+              ]
+            }
+          ],
+          "properties": {
+            "Node name for S&R": "H3VAELoader"
+          },
+          "widgets_values": [
+            "minimax_h3_audio_vae_fp32.safetensors"
+          ],
+          "widgets_values_named": {
+            "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+          }
+        },
+        {
+          "id": 121,
+          "type": "H3AudioDecode",
+          "pos": [
+            2665.9,
+            130
+          ],
+          "size": [
+            152,
+            86
+          ],
+          "flags": {},
+          "order": 16,
+          "mode": 0,
+          "inputs": [
+            {
+              "name": "samples",
+              "type": "LATENT",
+              "link": 40
+            },
+            {
+              "name": "vae",
+              "type": "VAE",
+              "link": 41
+            },
+            {
+              "name": "context",
+              "type": "STRING",
+              "link": 43
+            },
+            {
+              "name": "video_ready",
+              "type": "IMAGE",
+              "link": 42
+            }
+          ],
+          "outputs": [
+            {
+              "name": "AUDIO",
+              "type": "AUDIO",
+              "links": [
+                60
+              ]
+            }
+          ],
+          "properties": {
+            "Node name for S&R": "H3AudioDecode"
+          }
+        },
+        {
+          "id": 122,
+          "type": "H3VideoDecode",
+          "pos": [
+            2418,
+            130
+          ],
+          "size": [
+            147.9,
+            66
+          ],
+          "flags": {},
+          "order": 15,
+          "mode": 0,
+          "inputs": [
+            {
+              "name": "samples",
+              "type": "LATENT",
+              "link": 44
+            },
+            {
+              "name": "vae",
+              "type": "VAE",
+              "link": 45
+            },
+            {
+              "name": "context",
+              "type": "STRING",
+              "link": 46
+            }
+          ],
+          "outputs": [
+            {
+              "name": "IMAGE",
+              "type": "IMAGE",
+              "links": [
+                42,
+                59
+              ]
+            }
+          ],
+          "properties": {
+            "Node name for S&R": "H3VideoDecode"
+          }
+        },
+        {
+          "id": 123,
+          "type": "KSamplerSelect",
+          "pos": [
+            100,
+            130
+          ],
+          "size": [
+            270,
+            58
+          ],
+          "flags": {},
+          "order": 0,
+          "mode": 0,
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "SAMPLER",
+              "type": "SAMPLER",
+              "links": [
+                51
+              ]
+            }
+          ],
+          "properties": {
+            "Node name for S&R": "KSamplerSelect"
+          },
+          "widgets_values": [
+            "res_multistep"
+          ],
+          "widgets_values_named": {
+            "sampler_name": "res_multistep"
+          }
+        },
+        {
+          "id": 124,
+          "type": "H3Scheduler",
+          "pos": [
+            1350,
+            130
+          ],
+          "size": [
+            270,
+            126
+          ],
+          "flags": {},
+          "order": 11,
+          "mode": 0,
+          "inputs": [
+            {
+              "name": "model",
+              "type": "MODEL",
+              "link": 47
+            },
+            {
+              "name": "context",
+              "type": "STRING",
+              "link": 48
+            }
+          ],
+          "outputs": [
+            {
+              "name": "SIGMAS",
+              "type": "SIGMAS",
+              "links": [
+                52
+              ]
+            }
+          ],
+          "properties": {
+            "Node name for S&R": "H3Scheduler"
+          },
+          "widgets_values": [
+            "simple",
+            25,
+            1
+          ],
+          "widgets_values_named": {
+            "scheduler": "simple",
+            "steps": 25,
+            "denoise": 1
+          }
+        },
+        {
+          "id": 125,
+          "type": "H3Sampler",
+          "pos": [
+            2109,
+            130
+          ],
+          "size": [
+            209,
+            126
+          ],
+          "flags": {},
+          "order": 14,
+          "mode": 0,
+          "inputs": [
+            {
+              "name": "noise",
+              "type": "NOISE",
+              "link": 49
+            },
+            {
+              "name": "guider",
+              "type": "GUIDER",
+              "link": 50
+            },
+            {
+              "name": "sampler",
+              "type": "SAMPLER",
+              "link": 51
+            },
+            {
+              "name": "sigmas",
+              "type": "SIGMAS",
+              "link": 52
+            },
+            {
+              "name": "latent_image",
+              "type": "LATENT",
+              "link": 53
+            },
+            {
+              "name": "context",
+              "type": "STRING",
+              "link": 54
+            }
+          ],
+          "outputs": [
+            {
+              "name": "output",
+              "type": "LATENT",
+              "links": [
+                40,
+                44
+              ]
+            },
+            {
+              "name": "denoised_output",
+              "type": "LATENT",
+              "links": null
+            }
+          ],
+          "properties": {
+            "Node name for S&R": "H3Sampler"
+          }
+        },
+        {
+          "id": 126,
+          "type": "BasicGuider",
+          "pos": [
+            1850,
+            130
+          ],
+          "size": [
+            159,
+            46
+          ],
+          "flags": {},
+          "order": 13,
+          "mode": 0,
+          "inputs": [
+            {
+              "name": "model",
+              "type": "MODEL",
+              "link": 55
+            },
+            {
+              "name": "conditioning",
+              "type": "CONDITIONING",
+              "link": 56
+            }
+          ],
+          "outputs": [
+            {
+              "name": "GUIDER",
+              "type": "GUIDER",
+              "links": [
+                50
+              ]
+            }
+          ],
+          "properties": {
+            "Node name for S&R": "BasicGuider"
+          }
+        },
+        {
+          "id": 127,
+          "type": "H3UNETLoader",
+          "pos": [
+            980,
+            506
+          ],
+          "size": [
+            270,
+            82
+          ],
+          "flags": {},
+          "order": 9,
+          "mode": 0,
+          "inputs": [
+            {
+              "name": "context",
+              "type": "STRING",
+              "link": 57
+            }
+          ],
+          "outputs": [
+            {
+              "name": "MODEL",
+              "type": "MODEL",
+              "links": [
+                47,
+                55
+              ]
+            }
+          ],
+          "properties": {
+            "Node name for S&R": "H3UNETLoader"
+          },
+          "widgets_values": [
+            "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+            "default"
+          ],
+          "widgets_values_named": {
+            "unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+            "weight_dtype": "default"
+          }
+        },
+        {
+          "id": 128,
+          "type": "H3CLIPLoader",
+          "pos": [
+            980,
+            718
+          ],
+          "size": [
+            270,
+            106
+          ],
+          "flags": {},
+          "order": 10,
+          "mode": 0,
+          "inputs": [
+            {
+              "name": "context",
+              "type": "STRING",
+              "link": 58
+            }
+          ],
+          "outputs": [
+            {
+              "name": "CLIP",
+              "type": "CLIP",
+              "links": [
+                61
+              ]
+            }
+          ],
+          "properties": {
+            "Node name for S&R": "H3CLIPLoader"
+          },
+          "widgets_values": [
+            "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+            "minimax",
+            "default"
+          ],
+          "widgets_values_named": {
+            "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+            "type": "minimax",
+            "device": "default"
+          }
+        },
+        {
+          "id": 129,
+          "type": "RandomNoise",
+          "pos": [
+            100,
+            318
+          ],
+          "size": [
+            270,
+            82
+          ],
+          "flags": {},
+          "order": 1,
+          "mode": 0,
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "NOISE",
+              "type": "NOISE",
+              "links": [
+                49
+              ]
+            }
+          ],
+          "properties": {
+            "Node name for S&R": "RandomNoise"
+          },
+          "widgets_values": [
+            123456789,
+            "fixed"
+          ],
+          "widgets_values_named": {
+            "noise_seed": 123456789,
+            "control_after_generate": "fixed"
+          }
+        },
+        {
+          "id": 130,
+          "type": "CreateVideo",
+          "pos": [
+            2917.9,
+            130
+          ],
+          "size": [
+            270,
+            150
+          ],
+          "flags": {},
+          "order": 17,
+          "mode": 0,
+          "inputs": [
+            {
+              "name": "images",
+              "type": "IMAGE",
+              "link": 59
+            },
+            {
+              "name": "audio",
+              "shape": 7,
+              "type": "AUDIO",
+              "link": 60
+            }
+          ],
+          "outputs": [
+            {
+              "name": "VIDEO",
+              "type": "VIDEO",
+              "links": [
+                36
+              ]
+            }
+          ],
+          "properties": {
+            "Node name for S&R": "CreateVideo"
+          },
+          "widgets_values": [
+            24,
+            8,
+            "sRGB",
+            "none"
+          ],
+          "widgets_values_named": {
+            "fps": 24,
+            "bit_depth": 8,
+            "color_space": "sRGB",
+            "codec": "none"
+          }
+        },
+        {
+          "id": 136,
+          "type": "H3ReferenceToVideo",
+          "pos": [
+            1350,
+            386
+          ],
+          "size": [
+            400,
+            404
+          ],
+          "flags": {},
+          "order": 12,
+          "mode": 0,
+          "inputs": [
+            {
+              "name": "clip",
+              "type": "CLIP",
+              "link": 61
+            },
+            {
+              "name": "context",
+              "type": "STRING",
+              "link": 64
+            },
+            {
+              "name": "vae",
+              "shape": 7,
+              "type": "VAE",
+              "link": 62
+            },
+            {
+              "name": "audio_vae",
+              "shape": 7,
+              "type": "VAE",
+              "link": 63
+            },
+            {
+              "name": "ref_images.ref_image_0",
+              "shape": 7,
+              "type": "IMAGE",
+              "link": 65
+            },
+            {
+              "name": "ref_images.ref_image_1",
+              "shape": 7,
+              "type": "IMAGE",
+              "link": 66
+            },
+            {
+              "name": "ref_images.ref_image_2",
+              "shape": 7,
+              "type": "IMAGE",
+              "link": null
+            },
+            {
+              "name": "ref_videos.ref_video_0",
+              "shape": 7,
+              "type": "IMAGE",
+              "link": 67
+            },
+            {
+              "name": "ref_videos.ref_video_1",
+              "shape": 7,
+              "type": "IMAGE",
+              "link": null
+            },
+            {
+              "name": "ref_video_audios.ref_video_audio_0",
+              "shape": 7,
+              "type": "AUDIO",
+              "link": 68
+            },
+            {
+              "name": "ref_video_audios.ref_video_audio_1",
+              "shape": 7,
+              "type": "AUDIO",
+              "link": null
+            },
+            {
+              "name": "ref_audios.ref_audio_0",
+              "shape": 7,
+              "type": "AUDIO",
+              "link": null
+            }
+          ],
+          "outputs": [
+            {
+              "name": "positive",
+              "type": "CONDITIONING",
+              "links": [
+                56
+              ]
+            },
+            {
+              "name": "LATENT",
+              "type": "LATENT",
+              "links": [
+                53
+              ]
+            }
+          ],
+          "properties": {
+            "Node name for S&R": "H3ReferenceToVideo"
+          },
+          "widgets_values": [
+            "A photorealistic dance fashion video. Use exactly the same woman as <Picture 1>, which is a still extracted from <Video 1>. Preserve this dancer's exact face, long dark hairstyle, skin tone, body proportions and apparent age throughout.\n<Video 1> supplies this same dancer, her choreography, gestures and body movements, the home interior, lighting, static camera and full-body portrait framing. Closely follow this excerpt of her dance. Keep her face and hair unchanged and keep the original room consistent.\n<Picture 2> supplies CLOTHING ONLY: Cream ruffled long-sleeved cropped blouse with wide collar and matching cream short skirt. Dress the dancer from <Picture 1> and <Video 1> in this exact complete outfit from the first frame through the last frame of this section. Match the garment color, fabric, cut and distinctive details. Ignore the photographed clothing model's face, hair, body and background. Do not borrow her identity. Replace the original dancer's white overalls completely with this referenced outfit.\nThe dancer dances naturally with continuous movement. Keep the entire outfit and legs visible. One woman, coherent hands and limbs, no new person, no scene cuts within this section, no different face, no text, no labels, no watermarks, no clothing photo background.\nGenerate synchronized dance music guided by <Audio 1>, paired with <Video 1>.",
+            576,
+            768,
+            107,
+            "max"
+          ],
+          "widgets_values_named": {
+            "prompt": "A photorealistic dance fashion video. Use exactly the same woman as <Picture 1>, which is a still extracted from <Video 1>. Preserve this dancer's exact face, long dark hairstyle, skin tone, body proportions and apparent age throughout.\n<Video 1> supplies this same dancer, her choreography, gestures and body movements, the home interior, lighting, static camera and full-body portrait framing. Closely follow this excerpt of her dance. Keep her face and hair unchanged and keep the original room consistent.\n<Picture 2> supplies CLOTHING ONLY: Cream ruffled long-sleeved cropped blouse with wide collar and matching cream short skirt. Dress the dancer from <Picture 1> and <Video 1> in this exact complete outfit from the first frame through the last frame of this section. Match the garment color, fabric, cut and distinctive details. Ignore the photographed clothing model's face, hair, body and background. Do not borrow her identity. Replace the original dancer's white overalls completely with this referenced outfit.\nThe dancer dances naturally with continuous movement. Keep the entire outfit and legs visible. One woman, coherent hands and limbs, no new person, no scene cuts within this section, no different face, no text, no labels, no watermarks, no clothing photo background.\nGenerate synchronized dance music guided by <Audio 1>, paired with <Video 1>.",
+            "width": 576,
+            "height": 768,
+            "length": 107,
+            "ref_image_size": "max"
+          }
+        },
+        {
+          "id": 200,
+          "type": "H3Begin",
+          "pos": [
+            100,
+            530
+          ],
+          "size": [
+            270,
+            82
+          ],
+          "flags": {},
+          "order": 2,
+          "mode": 0,
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "STRING",
+              "type": "STRING",
+              "links": [
+                69,
+                70
+              ]
+            }
+          ],
+          "properties": {
+            "Node name for S&R": "H3Begin"
+          },
+          "widgets_values": [
+            "browser",
+            0
+          ],
+          "widgets_values_named": {
+            "job_id": "browser",
+            "memory_level": 0
+          }
+        },
+        {
+          "id": 201,
+          "type": "H3RecordSettings",
+          "pos": [
+            480,
+            130
+          ],
+          "size": [
+            400,
+            310
+          ],
+          "flags": {},
+          "order": 5,
+          "mode": 0,
+          "inputs": [
+            {
+              "name": "context",
+              "type": "STRING",
+              "link": 69
+            }
+          ],
+          "outputs": [
+            {
+              "name": "STRING",
+              "type": "STRING",
+              "links": [
+                37,
+                38,
+                39,
+                43,
+                46,
+                48,
+                54,
+                57,
+                58,
+                64
+              ]
+            }
+          ],
+          "properties": {
+            "Node name for S&R": "H3RecordSettings"
+          },
+          "widgets_values": [
+            576,
+            768,
+            107,
+            "A photorealistic dance fashion video. Use exactly the same woman as <Picture 1>, which is a still extracted from <Video 1>. Preserve this dancer's exact face, long dark hairstyle, skin tone, body proportions and apparent age throughout.\n<Video 1> supplies this same dancer, her choreography, gestures and body movements, the home interior, lighting, static camera and full-body portrait framing. Closely follow this excerpt of her dance. Keep her face and hair unchanged and keep the original room consistent.\n<Picture 2> supplies CLOTHING ONLY: Cream ruffled long-sleeved cropped blouse with wide collar and matching cream short skirt. Dress the dancer from <Picture 1> and <Video 1> in this exact complete outfit from the first frame through the last frame of this section. Match the garment color, fabric, cut and distinctive details. Ignore the photographed clothing model's face, hair, body and background. Do not borrow her identity. Replace the original dancer's white overalls completely with this referenced outfit.\nThe dancer dances naturally with continuous movement. Keep the entire outfit and legs visible. One woman, coherent hands and limbs, no new person, no scene cuts within this section, no different face, no text, no labels, no watermarks, no clothing photo background.\nGenerate synchronized dance music guided by <Audio 1>, paired with <Video 1>.",
+            123456789,
+            "diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+            "text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+            "max",
+            "[{\"tag\": \"<Picture 1>\", \"role\": \"dancer identity from source video\", \"path\": \"/workspace/minimax-h3/projects/dance-outfit-sequence/dancer-identity.png\"}, {\"tag\": \"<Picture 2>\", \"role\": \"outfit 2 clothing only\", \"path\": \"/workspace/hostvideo/ref/qNh0S3SXyDGQM6VzOO0kxAlI8ttZ7nOi8w5TWdqp-1.jpg\"}, {\"tag\": \"<Video 1>\", \"role\": \"choreography from 3.750 seconds\", \"path\": \"/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4\"}, {\"tag\": \"<Audio 1>\", \"role\": \"paired dance soundtrack\", \"path\": \"/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4\"}]"
+          ],
+          "widgets_values_named": {
+            "width": 576,
+            "height": 768,
+            "length": 107,
+            "prompt": "A photorealistic dance fashion video. Use exactly the same woman as <Picture 1>, which is a still extracted from <Video 1>. Preserve this dancer's exact face, long dark hairstyle, skin tone, body proportions and apparent age throughout.\n<Video 1> supplies this same dancer, her choreography, gestures and body movements, the home interior, lighting, static camera and full-body portrait framing. Closely follow this excerpt of her dance. Keep her face and hair unchanged and keep the original room consistent.\n<Picture 2> supplies CLOTHING ONLY: Cream ruffled long-sleeved cropped blouse with wide collar and matching cream short skirt. Dress the dancer from <Picture 1> and <Video 1> in this exact complete outfit from the first frame through the last frame of this section. Match the garment color, fabric, cut and distinctive details. Ignore the photographed clothing model's face, hair, body and background. Do not borrow her identity. Replace the original dancer's white overalls completely with this referenced outfit.\nThe dancer dances naturally with continuous movement. Keep the entire outfit and legs visible. One woman, coherent hands and limbs, no new person, no scene cuts within this section, no different face, no text, no labels, no watermarks, no clothing photo background.\nGenerate synchronized dance music guided by <Audio 1>, paired with <Video 1>.",
+            "seed": 123456789,
+            "diffusion": "diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+            "encoder": "text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+            "ref_image_size": "max",
+            "reference_mapping": "[{\"tag\": \"<Picture 1>\", \"role\": \"dancer identity from source video\", \"path\": \"/workspace/minimax-h3/projects/dance-outfit-sequence/dancer-identity.png\"}, {\"tag\": \"<Picture 2>\", \"role\": \"outfit 2 clothing only\", \"path\": \"/workspace/hostvideo/ref/qNh0S3SXyDGQM6VzOO0kxAlI8ttZ7nOi8w5TWdqp-1.jpg\"}, {\"tag\": \"<Video 1>\", \"role\": \"choreography from 3.750 seconds\", \"path\": \"/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4\"}, {\"tag\": \"<Audio 1>\", \"role\": \"paired dance soundtrack\", \"path\": \"/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4\"}]"
+          }
+        },
+        {
+          "id": 300,
+          "type": "LoadImage",
+          "pos": [
+            100,
+            742
+          ],
+          "size": [
+            280,
+            102
+          ],
+          "flags": {},
+          "order": 3,
+          "mode": 0,
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "IMAGE",
+              "type": "IMAGE",
+              "links": [
+                65
+              ]
+            },
+            {
+              "name": "MASK",
+              "type": "MASK",
+              "links": null
+            }
+          ],
+          "properties": {
+            "Node name for S&R": "LoadImage"
+          },
+          "widgets_values": [
+            "dance_dancer.png",
+            "image"
+          ],
+          "widgets_values_named": {
+            "image": "dance_dancer.png",
+            "upload": "image"
+          }
+        },
+        {
+          "id": 301,
+          "type": "LoadImage",
+          "pos": [
+            100,
+            974
+          ],
+          "size": [
+            280,
+            102
+          ],
+          "flags": {},
+          "order": 4,
+          "mode": 0,
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "IMAGE",
+              "type": "IMAGE",
+              "links": [
+                66
+              ]
+            },
+            {
+              "name": "MASK",
+              "type": "MASK",
+              "links": null
+            }
+          ],
+          "properties": {
+            "Node name for S&R": "LoadImage"
+          },
+          "widgets_values": [
+            "dance_outfit_2.png",
+            "image"
+          ],
+          "widgets_values_named": {
+            "image": "dance_outfit_2.png",
+            "upload": "image"
+          }
+        },
+        {
+          "id": 310,
+          "type": "H3LoadReferenceVideo",
+          "pos": [
+            480,
+            570
+          ],
+          "size": [
+            270,
+            594
+          ],
+          "flags": {},
+          "order": 6,
+          "mode": 0,
+          "inputs": [
+            {
+              "name": "context",
+              "type": "STRING",
+              "link": 70
+            }
+          ],
+          "outputs": [
+            {
+              "name": "frames",
+              "type": "IMAGE",
+              "links": [
+                67
+              ]
+            },
+            {
+              "name": "paired_audio",
+              "type": "AUDIO",
+              "links": [
+                68
+              ]
+            },
+            {
+              "name": "metadata",
+              "type": "STRING",
+              "links": null
+            }
+          ],
+          "properties": {
+            "Node name for S&R": "H3LoadReferenceVideo"
+          },
+          "widgets_values": [
+            "dance_section_2.mp4",
+            4.5,
+            0.4,
+            "9:16",
+            0,
+            true,
+            "image"
+          ],
+          "widgets_values_named": {
+            "file": "dance_section_2.mp4",
+            "duration": 4.5,
+            "megapixels": 0.4,
+            "aspect_ratio": "9:16",
+            "start": 0,
+            "include_audio": true,
+            "upload": "image"
+          }
+        }
+      ],
+      "links": [
+        [
+          36,
+          130,
+          0,
+          92,
+          0,
+          "VIDEO"
+        ],
+        [
+          37,
+          201,
+          0,
+          92,
+          1,
+          "STRING"
+        ],
+        [
+          38,
+          201,
+          0,
+          119,
+          0,
+          "STRING"
+        ],
+        [
+          39,
+          201,
+          0,
+          120,
+          0,
+          "STRING"
+        ],
+        [
+          40,
+          125,
+          0,
+          121,
+          0,
+          "LATENT"
+        ],
+        [
+          41,
+          120,
+          0,
+          121,
+          1,
+          "VAE"
+        ],
+        [
+          42,
+          122,
+          0,
+          121,
+          3,
+          "IMAGE"
+        ],
+        [
+          43,
+          201,
+          0,
+          121,
+          2,
+          "STRING"
+        ],
+        [
+          44,
+          125,
+          0,
+          122,
+          0,
+          "LATENT"
+        ],
+        [
+          45,
+          119,
+          0,
+          122,
+          1,
+          "VAE"
+        ],
+        [
+          46,
+          201,
+          0,
+          122,
+          2,
+          "STRING"
+        ],
+        [
+          47,
+          127,
+          0,
+          124,
+          0,
+          "MODEL"
+        ],
+        [
+          48,
+          201,
+          0,
+          124,
+          1,
+          "STRING"
+        ],
+        [
+          49,
+          129,
+          0,
+          125,
+          0,
+          "NOISE"
+        ],
+        [
+          50,
+          126,
+          0,
+          125,
+          1,
+          "GUIDER"
+        ],
+        [
+          51,
+          123,
+          0,
+          125,
+          2,
+          "SAMPLER"
+        ],
+        [
+          52,
+          124,
+          0,
+          125,
+          3,
+          "SIGMAS"
+        ],
+        [
+          53,
+          136,
+          1,
+          125,
+          4,
+          "LATENT"
+        ],
+        [
+          54,
+          201,
+          0,
+          125,
+          5,
+          "STRING"
+        ],
+        [
+          55,
+          127,
+          0,
+          126,
+          0,
+          "MODEL"
+        ],
+        [
+          56,
+          136,
+          0,
+          126,
+          1,
+          "CONDITIONING"
+        ],
+        [
+          57,
+          201,
+          0,
+          127,
+          0,
+          "STRING"
+        ],
+        [
+          58,
+          201,
+          0,
+          128,
+          0,
+          "STRING"
+        ],
+        [
+          59,
+          122,
+          0,
+          130,
+          0,
+          "IMAGE"
+        ],
+        [
+          60,
+          121,
+          0,
+          130,
+          1,
+          "AUDIO"
+        ],
+        [
+          61,
+          128,
+          0,
+          136,
+          0,
+          "CLIP"
+        ],
+        [
+          62,
+          119,
+          0,
+          136,
+          2,
+          "VAE"
+        ],
+        [
+          63,
+          120,
+          0,
+          136,
+          3,
+          "VAE"
+        ],
+        [
+          64,
+          201,
+          0,
+          136,
+          1,
+          "STRING"
+        ],
+        [
+          65,
+          300,
+          0,
+          136,
+          4,
+          "IMAGE"
+        ],
+        [
+          66,
+          301,
+          0,
+          136,
+          5,
+          "IMAGE"
+        ],
+        [
+          67,
+          310,
+          0,
+          136,
+          7,
+          "IMAGE"
+        ],
+        [
+          68,
+          310,
+          1,
+          136,
+          9,
+          "AUDIO"
+        ],
+        [
+          69,
+          200,
+          0,
+          201,
+          0,
+          "STRING"
+        ],
+        [
+          70,
+          200,
+          0,
+          310,
+          0,
+          "STRING"
+        ]
+      ],
+      "groups": [],
+      "config": {},
+      "extra": {
+        "ds": {
+          "scale": 0.9,
+          "offset": [
+            416,
+            110
+          ]
+        },
+        "frontendVersion": "1.53.10"
+      },
+      "version": 0.4
+    },
+    "output": {
+      "92": {
+        "inputs": {
+          "filename_prefix": "h3/browser/clip",
+          "format": "mp4",
+          "format.codec": "h264",
+          "format.codec.encoding": "re-encode",
+          "format.codec.encoding.crf": 16,
+          "codec": "auto",
+          "video": [
+            "130",
+            0
+          ],
+          "context": [
+            "201",
+            0
+          ]
+        },
+        "class_type": "H3SaveVideo",
+        "_meta": {
+          "title": "H3SaveVideo"
+        }
+      },
+      "119": {
+        "inputs": {
+          "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors",
+          "context": [
+            "201",
+            0
+          ]
+        },
+        "class_type": "H3VAELoader",
+        "_meta": {
+          "title": "H3VAELoader"
+        }
+      },
+      "120": {
+        "inputs": {
+          "vae_name": "minimax_h3_audio_vae_fp32.safetensors",
+          "context": [
+            "201",
+            0
+          ]
+        },
+        "class_type": "H3VAELoader",
+        "_meta": {
+          "title": "H3VAELoader"
+        }
+      },
+      "121": {
+        "inputs": {
+          "samples": [
+            "125",
+            0
+          ],
+          "vae": [
+            "120",
+            0
+          ],
+          "context": [
+            "201",
+            0
+          ],
+          "video_ready": [
+            "122",
+            0
+          ]
+        },
+        "class_type": "H3AudioDecode",
+        "_meta": {
+          "title": "H3AudioDecode"
+        }
+      },
+      "122": {
+        "inputs": {
+          "samples": [
+            "125",
+            0
+          ],
+          "vae": [
+            "119",
+            0
+          ],
+          "context": [
+            "201",
+            0
+          ]
+        },
+        "class_type": "H3VideoDecode",
+        "_meta": {
+          "title": "H3VideoDecode"
+        }
+      },
+      "123": {
+        "inputs": {
+          "sampler_name": "res_multistep"
+        },
+        "class_type": "KSamplerSelect",
+        "_meta": {
+          "title": "KSamplerSelect"
+        }
+      },
+      "124": {
+        "inputs": {
+          "scheduler": "simple",
+          "steps": 25,
+          "denoise": 1,
+          "model": [
+            "127",
+            0
+          ],
+          "context": [
+            "201",
+            0
+          ]
+        },
+        "class_type": "H3Scheduler",
+        "_meta": {
+          "title": "H3Scheduler"
+        }
+      },
+      "125": {
+        "inputs": {
+          "noise": [
+            "129",
+            0
+          ],
+          "guider": [
+            "126",
+            0
+          ],
+          "sampler": [
+            "123",
+            0
+          ],
+          "sigmas": [
+            "124",
+            0
+          ],
+          "latent_image": [
+            "136",
+            1
+          ],
+          "context": [
+            "201",
+            0
+          ]
+        },
+        "class_type": "H3Sampler",
+        "_meta": {
+          "title": "H3Sampler"
+        }
+      },
+      "126": {
+        "inputs": {
+          "model": [
+            "127",
+            0
+          ],
+          "conditioning": [
+            "136",
+            0
+          ]
+        },
+        "class_type": "BasicGuider",
+        "_meta": {
+          "title": "Basic Guider"
+        }
+      },
+      "127": {
+        "inputs": {
+          "unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+          "weight_dtype": "default",
+          "context": [
+            "201",
+            0
+          ]
+        },
+        "class_type": "H3UNETLoader",
+        "_meta": {
+          "title": "H3UNETLoader"
+        }
+      },
+      "128": {
+        "inputs": {
+          "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+          "type": "minimax",
+          "device": "default",
+          "context": [
+            "201",
+            0
+          ]
+        },
+        "class_type": "H3CLIPLoader",
+        "_meta": {
+          "title": "H3CLIPLoader"
+        }
+      },
+      "129": {
+        "inputs": {
+          "noise_seed": 123456789
+        },
+        "class_type": "RandomNoise",
+        "_meta": {
+          "title": "RandomNoise"
+        }
+      },
+      "130": {
+        "inputs": {
+          "fps": 24,
+          "bit_depth": 8,
+          "color_space": "sRGB",
+          "codec": "none",
+          "images": [
+            "122",
+            0
+          ],
+          "audio": [
+            "121",
+            0
+          ]
+        },
+        "class_type": "CreateVideo",
+        "_meta": {
+          "title": "Create Video"
+        }
+      },
+      "136": {
+        "inputs": {
+          "prompt": "A photorealistic dance fashion video. Use exactly the same woman as <Picture 1>, which is a still extracted from <Video 1>. Preserve this dancer's exact face, long dark hairstyle, skin tone, body proportions and apparent age throughout.\n<Video 1> supplies this same dancer, her choreography, gestures and body movements, the home interior, lighting, static camera and full-body portrait framing. Closely follow this excerpt of her dance. Keep her face and hair unchanged and keep the original room consistent.\n<Picture 2> supplies CLOTHING ONLY: Cream ruffled long-sleeved cropped blouse with wide collar and matching cream short skirt. Dress the dancer from <Picture 1> and <Video 1> in this exact complete outfit from the first frame through the last frame of this section. Match the garment color, fabric, cut and distinctive details. Ignore the photographed clothing model's face, hair, body and background. Do not borrow her identity. Replace the original dancer's white overalls completely with this referenced outfit.\nThe dancer dances naturally with continuous movement. Keep the entire outfit and legs visible. One woman, coherent hands and limbs, no new person, no scene cuts within this section, no different face, no text, no labels, no watermarks, no clothing photo background.\nGenerate synchronized dance music guided by <Audio 1>, paired with <Video 1>.",
+          "width": 576,
+          "height": 768,
+          "length": 107,
+          "ref_image_size": "max",
+          "clip": [
+            "128",
+            0
+          ],
+          "context": [
+            "201",
+            0
+          ],
+          "vae": [
+            "119",
+            0
+          ],
+          "audio_vae": [
+            "120",
+            0
+          ],
+          "ref_images.ref_image_0": [
+            "300",
+            0
+          ],
+          "ref_images.ref_image_1": [
+            "301",
+            0
+          ],
+          "ref_videos.ref_video_0": [
+            "310",
+            0
+          ],
+          "ref_video_audios.ref_video_audio_0": [
+            "310",
+            1
+          ]
+        },
+        "class_type": "H3ReferenceToVideo",
+        "_meta": {
+          "title": "H3ReferenceToVideo"
+        }
+      },
+      "200": {
+        "inputs": {
+          "job_id": "browser",
+          "memory_level": 0
+        },
+        "class_type": "H3Begin",
+        "_meta": {
+          "title": "H3Begin"
+        }
+      },
+      "201": {
+        "inputs": {
+          "width": 576,
+          "height": 768,
+          "length": 107,
+          "prompt": "A photorealistic dance fashion video. Use exactly the same woman as <Picture 1>, which is a still extracted from <Video 1>. Preserve this dancer's exact face, long dark hairstyle, skin tone, body proportions and apparent age throughout.\n<Video 1> supplies this same dancer, her choreography, gestures and body movements, the home interior, lighting, static camera and full-body portrait framing. Closely follow this excerpt of her dance. Keep her face and hair unchanged and keep the original room consistent.\n<Picture 2> supplies CLOTHING ONLY: Cream ruffled long-sleeved cropped blouse with wide collar and matching cream short skirt. Dress the dancer from <Picture 1> and <Video 1> in this exact complete outfit from the first frame through the last frame of this section. Match the garment color, fabric, cut and distinctive details. Ignore the photographed clothing model's face, hair, body and background. Do not borrow her identity. Replace the original dancer's white overalls completely with this referenced outfit.\nThe dancer dances naturally with continuous movement. Keep the entire outfit and legs visible. One woman, coherent hands and limbs, no new person, no scene cuts within this section, no different face, no text, no labels, no watermarks, no clothing photo background.\nGenerate synchronized dance music guided by <Audio 1>, paired with <Video 1>.",
+          "seed": 123456789,
+          "diffusion": "diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+          "encoder": "text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+          "ref_image_size": "max",
+          "reference_mapping": "[{\"tag\": \"<Picture 1>\", \"role\": \"dancer identity from source video\", \"path\": \"/workspace/minimax-h3/projects/dance-outfit-sequence/dancer-identity.png\"}, {\"tag\": \"<Picture 2>\", \"role\": \"outfit 2 clothing only\", \"path\": \"/workspace/hostvideo/ref/qNh0S3SXyDGQM6VzOO0kxAlI8ttZ7nOi8w5TWdqp-1.jpg\"}, {\"tag\": \"<Video 1>\", \"role\": \"choreography from 3.750 seconds\", \"path\": \"/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4\"}, {\"tag\": \"<Audio 1>\", \"role\": \"paired dance soundtrack\", \"path\": \"/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4\"}]",
+          "context": [
+            "200",
+            0
+          ]
+        },
+        "class_type": "H3RecordSettings",
+        "_meta": {
+          "title": "H3RecordSettings"
+        }
+      },
+      "300": {
+        "inputs": {
+          "image": "dance_dancer.png"
+        },
+        "class_type": "LoadImage",
+        "_meta": {
+          "title": "Load Image"
+        }
+      },
+      "301": {
+        "inputs": {
+          "image": "dance_outfit_2.png"
+        },
+        "class_type": "LoadImage",
+        "_meta": {
+          "title": "Load Image"
+        }
+      },
+      "310": {
+        "inputs": {
+          "file": "dance_section_2.mp4",
+          "duration": 4.5,
+          "megapixels": 0.4,
+          "aspect_ratio": "9:16",
+          "start": 0,
+          "include_audio": true,
+          "video-preview": "",
+          "context": [
+            "200",
+            0
+          ]
+        },
+        "class_type": "H3LoadReferenceVideo",
+        "_meta": {
+          "title": "H3LoadReferenceVideo"
+        }
+      }
+    }
+  }
+}

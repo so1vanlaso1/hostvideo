@@ -3,7 +3,7 @@ import os
 import subprocess
 import sys
 
-from .config import RuntimePaths, COMFY_REVISION
+from .config import DEFAULT_PROFILE, RuntimePaths, COMFY_REVISION
 
 
 def command(paths, port=8188):
@@ -14,7 +14,7 @@ def command(paths, port=8188):
             "--reserve-vram", "1", "--use-pytorch-cross-attention", "--cache-none", "--preview-method", "none"]
 
 
-def serve(root, port=8188, print_command=False, profile="primary"):
+def serve(root, port=8188, print_command=False, profile=DEFAULT_PROFILE):
     paths = RuntimePaths(Path(root).expanduser().resolve())
     cmd = command(paths, port)
     if print_command:

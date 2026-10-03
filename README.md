@@ -1,6 +1,6 @@
 # MiniMax H3 Ref2VA — Vast.ai / RTX 5060 Ti 16 GB
 
-This implementation follows `guide.txt`: one reference-driven clip, approximately 15 seconds, native generated audio, Comfy-Org checkpoints, four-step Ref2V Turbo and CPU offloading. It provides a ComfyUI browser graph and a Python/CLI client. **The 15-second fit and reference quality must be measured on your Vast GPU.** Local tests do not establish GPU performance.
+This implementation generates reference-driven clips with native audio using Comfy-Org checkpoints and CPU offloading. Quality defaults supersede the original speed settings in `guide.txt`: native 1344×768 output, 25 base sampling steps, Turbo disabled, INT8 Qwen3-VL encoder, and `max` image references. It provides ComfyUI browser workflows and a Python/CLI client. **The 15-second fit and reference quality must be measured on your Vast GPU.** Local tests do not establish visual quality.
 
 ## 1. Rent and upload
 
@@ -31,46 +31,32 @@ source "$H3_ROOT/venv/bin/activate"
 
 Setup pins ComfyUI, the official workflow and model revisions. It installs Python 3.11, PyTorch **2.13.0 / CUDA 13.0**, torchvision 0.28.0, native ComfyUI dependencies and this package. If Python 3.11 is absent, a separate uv bootstrap environment supplies it. Setup saves the resolved dependency lock, checks CUDA execution and runs small quantization kernel checks **before downloading weights**. No host driver or system Python is replaced.
 
-The default download contains exactly five checkpoints, approximately **39.1 GiB total**:
+The default download contains exactly five checkpoints, approximately **49.8 GiB total**:
 
 | Component | Checkpoint |
 |---|---|
 | Diffusion | `minimax_h3_ref2va_pruned_int8_convrot.safetensors` |
-| Encoder | `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` |
+| Encoder | `qwen3vl_32b_minimax_h3_int8_convrot.safetensors` |
 | Video VAE | `minimax_h3_video_vae_int8_convrot.safetensors` |
 | Audio VAE | `minimax_h3_audio_vae_fp32.safetensors` |
-| LoRA | `minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors` |
+| Optional Turbo LoRA (disabled) | `minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors` |
 
 Downloads resume through Hugging Face's local cache and are verified against pinned LFS SHA256 hashes. Existing wrong-sized or corrupt models are reported for inspection; they are not deleted. `h3 download-models --verify-existing` rehashes completed files. Keep the download cache when resuming an interrupted download.
 
 The runtime root contains `ComfyUI/`, `venv/`, `models/`, `input/`, `output/`, `jobs/`, `logs/`, `locks/`, `temp/`, `user/` and owner-only `private/`. Keep `/data/h3-source` present because the package and custom nodes are installed from it. A mounted volume is still not an off-host backup.
 
-## 2. Start ComfyUI and authenticated browser access
+## 2. Managed ComfyUI and browser access
 
-Start ComfyUI in a persistent terminal:
-
-```bash
-tmux new -s h3-comfy
-cd /data/h3-source
-export H3_ROOT=/data/minimax-h3
-bash scripts/start_comfy.sh 2>&1 | tee "$H3_ROOT/logs/comfy.log"
-```
-
-Detach with `Ctrl-B`, then `D`. The server listens on **127.0.0.1:8188**, uses dynamic VRAM, one GiB reserved VRAM, FP16/CPU intermediates, PyTorch attention and disabled node-result caching. Native H3 VAE chunking stays intact. INT8 ConvRot must not use Comfy Kitchen attention; Comfy Kitchen's quantization kernels are still used by the checkpoint loaders.
-
-Install ngrok v3 from its [official Linux instructions](https://ngrok.com/download/linux). In the remote terminal, configure secrets privately:
+On this instance, ComfyUI is already managed by supervisor. See [INSTANCE.md](INSTANCE.md) for its public URL and commands. The user requested public access without authentication; the ComfyUI external port is excluded from Caddy authentication through `AUTH_EXCLUDE=10100` in `/workspace/.env`. `CADDY_HEADER_UP_LOCALHOST=8188` keeps proxy Host/Origin headers consistent for browser API requests. Anyone with the URL can submit jobs. The Vast rental still bills GPU time.
 
 ```bash
-cd /data/h3-source
-export H3_ROOT=/data/minimax-h3
-"$H3_ROOT/venv/bin/python" scripts/configure_ngrok.py
-tmux new -s h3-ngrok
-bash scripts/start_ngrok.sh
+supervisorctl status hostvideo
+supervisorctl restart hostvideo
 ```
 
-Open the printed HTTPS URL and use the username/password you selected. The enforced Basic Auth traffic policy protects browser and API access, including WebSockets. The ngrok agent runs in the same container as ComfyUI. Do not expose ports 8188 or 4040 through Vast; keep the original Host header. `NGROK_BIN` can select an installed binary and `H3_PORT` can select another private ComfyUI port. Your ngrok plan must support the configured traffic policy.
+The server listens internally on **127.0.0.1:8188**, uses dynamic VRAM, one GiB reserved VRAM, FP16/CPU intermediates, PyTorch attention and disabled node-result caching. Native H3 VAE chunking stays intact. INT8 ConvRot must not use Comfy Kitchen attention; its quantization kernels are still used by checkpoint loaders.
 
-To resume after Vast restarts, verify the mounted volume and rerun `start_comfy.sh` and `start_ngrok.sh` in separate tmux sessions. Setup is repeatable and preserves models, outputs and private credentials. Do not rerun setup while generation is active. To rebuild an environment on another host, recreate the venv and use the saved package lock; do not copy a venv across hosts.
+For deployment on another Vast instance, register `scripts/start_comfy.sh` as a supervisor service and expose it through that instance's portal configuration. Set `H3_ROOT` and `H3_PROFILE=int8-encoder` in the service wrapper. The included ngrok helper is an optional separate access method with its own authentication configuration.
 
 ## 3. Browser workflow
 
@@ -78,15 +64,15 @@ Load **`h3_pipeline/assets/workflows/ref2va_16gb_ui.json`** in ComfyUI. Setup al
 
 1. Upload/select a character image, clothing image and dance video in the corresponding reference loaders.
 2. Edit the main text prompt. The prompt builder adds explicit identity, clothing, motion and soundtrack assignments.
-3. Start with **3 seconds / 0.4 MP**. Set the same megapixels/aspect in the Resolution Selector and all reference loaders. The duration is shared with video preprocessing.
-4. Keep Turbo enabled, four steps, `res_multistep`, `beta`, guidance 1, `match` sizing and one batch. The BasicGuider node is the native no-CFG path equivalent to guidance 1.
+3. Start with **5 seconds / 0.98 MP** using `ref2va_quality_5s_098mp.json` on this instance. The main workflow defaults to 15 seconds. Keep matching megapixels/aspect settings in the Resolution Selector and reference loaders; duration is shared with video preprocessing.
+4. Keep Enable Lightning LoRA **off**, 25 base steps, `res_multistep`, `simple`, `max` image reference sizing and one batch. BasicGuider is the native no-CFG path equivalent to guidance 1. H.264 output uses CRF 16.
 5. Queue one generation and inspect the saved MP4 and audio before increasing duration/resolution.
 
 The browser graph is prepared for the primary one-character, one-outfit, one-video use case. The Python API supports up to nine ordered images and optional standalone audio. Additional browser references require wiring the native autogrow inputs and updating the prompt mapping; use the Python API when you want this done automatically.
 
 The browser video loader performs trimming/resizing with ffmpeg **before decoding** and allocates one FP16 CPU frame buffer. The paired soundtrack is cut to the same usable video duration. A silent video supplies no audio reference. `<Audio 1>` is the dance soundtrack when present; standalone audio becomes `<Audio 2>`. Audio references guide newly generated audio; this does not copy the source song unchanged into the final MP4.
 
-Browser jobs produce `output/h3/browser-TIMESTAMP-ID/clip_*.mp4` and `telemetry.json`. Automatic bounded OOM retries belong to the Python/CLI runner. For a browser OOM, change `memory_level` to 1 then 2, use `match`, and reduce all canvas/reference settings to 0.5 and 0.4 MP before reducing duration.
+Browser jobs produce `output/h3/browser-TIMESTAMP-ID/clip_*.mp4` and `telemetry.json`. Automatic OOM quality reductions are disabled by default. For a browser OOM, try a shorter clip or increase `memory_level` to 1 then 2 before choosing smaller resolution or references explicitly.
 
 ## 4. Command-line and Python generation
 
@@ -110,21 +96,21 @@ result = MiniMaxH3Pipeline().generate(
     clothing_images=["outfit.png"],
     reference_audio=None,
     duration=15.0,
-    megapixels=0.6,
+    megapixels=0.98,
     seed=123456789,
 )
 print(result.video_path)
 ```
 
-Other keyword options: `additional_reference_images`, `aspect_ratio` (`16:9`, `9:16`, `1:1`), `ref_image_size` (`match`, `max`), `include_video_audio` (default true), `reference_video_start`, `scheduler` (`beta`, `normal`), `oom_fallback` (default true), and `timeout` in seconds (default 7200).
+Other keyword options: `additional_reference_images`, `aspect_ratio` (`16:9`, `9:16`, `1:1`), `ref_image_size` (`match`, `max`), `include_video_audio` (default true), `reference_video_start`, `scheduler` (`simple` default, `beta`, `normal`), `steps` (default 25), `turbo` (default false), `oom_fallback` (default false), and `timeout` in seconds (default 21600). To explicitly use the older speed mode, pass `turbo=True, steps=4`; setting the step count alone does not enable the LoRA.
 
 Image order is character, clothing, additional, retaining list order within each group. Reference tags never silently move. A prompt referring to an unconnected tag fails clearly. If a dance video is silent, a manually written `<Audio 1>` tag is only valid when standalone reference audio is supplied.
 
-The native frame grid is `17k+5`: 3 seconds → 73 frames; 5 seconds → 124; 15 seconds → **362**, or **15.0833 seconds at 24 fps**. A 0.6 MP landscape canvas resolves to **1056×608** using ComfyUI's 1024-based megapixel calculation. Resolution is snapped to 32 and capped at 1344×768 pixel area. Reference video lengths crop down to the valid temporal grid; a 15-second/360-frame source has 345 usable frames. It is not stretched or padded.
+The native frame grid is `17k+5`: 3 seconds → 73 frames; 5 seconds → 124; 15 seconds → **362**, or **15.0833 seconds at 24 fps**. The default 0.98 MP landscape canvas resolves to **1344×768** using ComfyUI's 1024-based megapixel calculation. Resolution is snapped to 32 and capped at 1344×768 pixel area. Reference video lengths crop down to the valid temporal grid; a 15-second/360-frame source has 345 usable frames. It is not stretched or padded.
 
-On **CUDA OOM only**, the runner retries the same seed/duration with cleanup, encoder offloading and `match`, then stronger residency headroom, then 0.5 and 0.4 MP when smaller than the original request. Maximum five attempts for the default canvas. A change in reference resolution can change conditioning; the seed is preserved but identical output is not promised. Compatibility errors do not trigger resolution retries. A timeout reports the ComfyUI prompt ID and leaves the potentially running job intact—inspect it before resubmitting.
+Only when explicitly enabled with `oom_fallback=True`, on **CUDA OOM** the runner retries the same seed/duration with cleanup, encoder offloading and `match`, then stronger residency headroom, then 0.5 and 0.4 MP when smaller than the original request. Maximum five attempts for the default canvas. A change in reference resolution can change conditioning; the seed is preserved but identical output is not promised. Compatibility errors do not trigger resolution retries. A timeout reports the ComfyUI prompt ID and leaves the potentially running job intact—inspect it before resubmitting.
 
-For a remote client, install this package locally, set `server_url` to your ngrok URL, and provide `username`/`password` to `MiniMaxH3Pipeline`. CLI credentials are read from `H3_HTTP_USERNAME` and `H3_HTTP_PASSWORD`; do not put them in job JSON. You can choose a local client `root` for downloaded outputs. The same-host client lock prevents overlapping client retries; ComfyUI serializes execution from all clients.
+For a remote client, install this package locally, set `server_url` to the public ComfyUI URL. This instance does not require a username/password. For an independently authenticated proxy, provide `username`/`password` to `MiniMaxH3Pipeline`. CLI credentials are read from `H3_HTTP_USERNAME` and `H3_HTTP_PASSWORD`; do not put them in job JSON. You can choose a local client `root` for downloaded outputs. The same-host client lock prevents overlapping client retries; ComfyUI serializes execution from all clients.
 
 ## 5. GPU acceptance and compatibility profiles
 
@@ -152,7 +138,7 @@ H3_PROFILE=fp8 bash scripts/start_comfy.sh
 h3 generate --job examples/job.json --profile fp8
 ```
 
-Profiles: `primary`, `fp8` (diffusion only), `int8-encoder` (encoder only), `fp8-int8-encoder` (both). Set the same `H3_PROFILE` for setup/start and CLI profile for generation. The INT8 encoder is approximately 25.3 GiB on disk and increases RAM pressure. The video VAE remains INT8 ConvRot in every profile, so its kernels still need to pass. Profiles never download BF16 diffusion or an unrelated encoder. Browser checkpoint changes must be made explicitly in its loader nodes.
+Profiles: `int8-encoder` (quality default), `primary` (4-bit encoder), `fp8` (FP8 diffusion / 4-bit encoder), `fp8-int8-encoder` (FP8 diffusion / INT8 encoder). Set the same `H3_PROFILE` for setup/start and CLI profile for generation. The INT8 encoder is approximately 25.3 GiB on disk and increases RAM pressure. The video VAE remains INT8 ConvRot in every profile, so its kernels still need to pass. Profiles never download BF16 diffusion or an unrelated encoder. Browser checkpoint changes must be made explicitly in its loader nodes.
 
 Retrieve accepted outputs before stopping/destroying the rental:
 

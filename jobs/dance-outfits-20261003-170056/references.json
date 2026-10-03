@@ -1,0 +1,32 @@
+[
+  {
+    "tag": "<Picture 1>",
+    "role": "dancer identity from video",
+    "path": "/workspace/minimax-h3/projects/dance-outfit-sequence/dancer-identity.png"
+  },
+  {
+    "tag": "<Picture 2>",
+    "role": "outfit 1: White short-sleeved collared blouse, gray patterned tie, dark high-waisted wide-leg cropped trousers",
+    "path": "/workspace/hostvideo/ref/images.jpeg"
+  },
+  {
+    "tag": "<Picture 3>",
+    "role": "outfit 2: Cream ruffled long-sleeved cropped blouse with wide collar and matching cream short skirt",
+    "path": "/workspace/hostvideo/ref/qNh0S3SXyDGQM6VzOO0kxAlI8ttZ7nOi8w5TWdqp-1.jpg"
+  },
+  {
+    "tag": "<Picture 4>",
+    "role": "outfit 3: Light-gray short-sleeved zip-front top with red-white piping and matching long skirt",
+    "path": "/workspace/hostvideo/ref/Set-do-nu-poly-cotton-2da-ao-coc-tay-keo-khoa-chan-vay-dai-SFB3106.webp"
+  },
+  {
+    "tag": "<Audio 1>",
+    "role": "soundtrack paired with <Video 1>",
+    "path": "/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4"
+  },
+  {
+    "tag": "<Video 1>",
+    "role": "dancer identity, dance, room and camera",
+    "path": "/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4"
+  }
+]

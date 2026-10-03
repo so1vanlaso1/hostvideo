@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import sys
 
-from .config import ASSETS, PROFILES, RuntimePaths, write_json
+from .config import ASSETS, DEFAULT_PROFILE, PROFILES, RuntimePaths, write_json
 
 
 def parser():
@@ -13,22 +13,22 @@ def parser():
     p.add_argument("--root", default=str(RuntimePaths.default().root), help="Persistent runtime root (or H3_ROOT)")
     sub = p.add_subparsers(dest="command", required=True)
     pre = sub.add_parser("preflight", help="Check RAM, GPU, CUDA and optional quantization kernels")
-    pre.add_argument("--profile", choices=PROFILES, default="primary")
+    pre.add_argument("--profile", choices=PROFILES, default=DEFAULT_PROFILE)
     pre.add_argument("--kernels", action="store_true")
     pre.add_argument("--local", action="store_true", help="Allow a CPU development machine")
     pre.add_argument("--output", type=Path)
     download = sub.add_parser("download-models", help="Download and verify only the selected five checkpoints")
-    download.add_argument("--profile", choices=PROFILES, default="primary")
+    download.add_argument("--profile", choices=PROFILES, default=DEFAULT_PROFILE)
     download.add_argument("--verify-existing", action="store_true")
     start = sub.add_parser("serve", help="Start private ComfyUI with the 16 GB memory profile")
     start.add_argument("--port", type=int, default=8188)
-    start.add_argument("--profile", choices=PROFILES, default=os.environ.get("H3_PROFILE", "primary"))
+    start.add_argument("--profile", choices=PROFILES, default=os.environ.get("H3_PROFILE", DEFAULT_PROFILE))
     start.add_argument("--print-command", action="store_true")
     for name in ("generate", "benchmark"):
         job = sub.add_parser(name)
         job.add_argument("--job", required=True, type=Path, help="JSON job; asset paths are relative to this file")
         job.add_argument("--server", default=os.environ.get("H3_SERVER_URL", "http://127.0.0.1:8188"))
-        job.add_argument("--profile", choices=PROFILES, default="primary")
+        job.add_argument("--profile", choices=PROFILES, default=os.environ.get("H3_PROFILE", DEFAULT_PROFILE))
         if name == "benchmark":
             job.add_argument("--stage", choices=("smoke", "five-second", "target", "identity-motion", "clothing", "resolution"), default="smoke")
             job.add_argument("--megapixels", type=float, help="Required for optional resolution stage: 0.7, 0.8, 0.98")
@@ -40,7 +40,7 @@ def parser():
 def read_job(path):
     job = json.loads(path.read_text())
     allowed = {"prompt", "reference_video", "character_images", "clothing_images", "additional_reference_images", "reference_audio",
-               "duration", "megapixels", "seed", "aspect_ratio", "ref_image_size", "include_video_audio", "reference_video_start", "scheduler", "oom_fallback", "timeout"}
+               "duration", "megapixels", "seed", "aspect_ratio", "ref_image_size", "include_video_audio", "reference_video_start", "scheduler", "steps", "turbo", "oom_fallback", "timeout"}
     unknown = job.keys() - allowed
     if unknown:
         raise ValueError(f"Unknown job options: {sorted(unknown)}")
@@ -58,12 +58,14 @@ def read_job(path):
 def benchmark_job(job, stage, megapixels=None):
     job = dict(job)
     job["oom_fallback"] = False  # A failed requested size must not count as a passing benchmark.
+    job.setdefault("steps", 25)
+    job.setdefault("turbo", False)
     if stage == "smoke":
-        job.update(duration=3.0, megapixels=0.4)
+        job.update(duration=3.0, megapixels=0.98)
     elif stage == "five-second":
-        job.update(duration=5.0, megapixels=0.6)
+        job.update(duration=5.0, megapixels=0.98)
     else:
-        job.update(duration=15.0, megapixels=0.6)
+        job.update(duration=15.0, megapixels=0.98)
     if stage in ("smoke", "five-second", "target"):
         for field in ("reference_video", "reference_audio", "character_images", "clothing_images", "additional_reference_images"):
             job.pop(field, None)
@@ -103,7 +105,7 @@ def main(argv=None):
         elif args.command == "export-workflows":
             import shutil
             args.directory.mkdir(parents=True, exist_ok=True)
-            for name in ("ref2va_16gb_ui.json", "ref2va_api.json"):
+            for name in ("ref2va_16gb_ui.json", "ref2va_api.json", "ref2va_quality_5s_098mp.json"):
                 shutil.copy2(ASSETS / "workflows" / name, args.directory / name)
             print(args.directory.resolve())
         elif args.command in ("generate", "benchmark"):

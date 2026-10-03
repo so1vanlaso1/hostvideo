@@ -1,0 +1,18 @@
+# Python build and runtime files
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# Local environments and credentials
+.venv/
+venv/
+.env
+.env.*
+private/
+
+# Large runtime dependencies
+models/
+ComfyUI/

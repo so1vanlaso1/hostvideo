@@ -1,0 +1,41 @@
+{
+  "job_id": "dance-outfits-20261003-170056",
+  "status": "failed",
+  "seed": 123456789,
+  "width": 864,
+  "height": 1152,
+  "frame_count": 294,
+  "duration": 12.25,
+  "outfit_order": [
+    {
+      "path": "/workspace/hostvideo/ref/images.jpeg",
+      "description": "White short-sleeved collared blouse, gray patterned tie, dark high-waisted wide-leg cropped trousers"
+    },
+    {
+      "path": "/workspace/hostvideo/ref/qNh0S3SXyDGQM6VzOO0kxAlI8ttZ7nOi8w5TWdqp-1.jpg",
+      "description": "Cream ruffled long-sleeved cropped blouse with wide collar and matching cream short skirt"
+    },
+    {
+      "path": "/workspace/hostvideo/ref/Set-do-nu-poly-cotton-2da-ao-coc-tay-keo-khoa-chan-vay-dai-SFB3106.webp",
+      "description": "Light-gray short-sleeved zip-front top with red-white piping and matching long skirt"
+    }
+  ],
+  "video_source": "/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4",
+  "identity_source": "/workspace/minimax-h3/projects/dance-outfit-sequence/dancer-identity.png",
+  "reference_video": {
+    "source": "/workspace/hostvideo/ref/1791046298696_482745847960932513_8499542203127801062.mp4",
+    "prepared": "/workspace/minimax-h3/jobs/dance-outfits-20261003-170056/reference.mp4",
+    "source_width": 576,
+    "source_height": 768,
+    "width": 576,
+    "height": 768,
+    "frames": 294,
+    "usable_frames": 294,
+    "duration": 12.25,
+    "paired_audio": true,
+    "start": 0
+  },
+  "workflow_path": "/workspace/minimax-h3/jobs/dance-outfits-20261003-170056/workflow-api.json",
+  "error": "Generation was interrupted in ComfyUI",
+  "wall_seconds": 839.9017338627018
+}

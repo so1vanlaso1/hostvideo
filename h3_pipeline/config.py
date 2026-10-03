@@ -9,13 +9,14 @@ TEMPLATE_REVISION = "0e5c5efb32ba6f3365d6da07da64aaf668157042"
 MODEL_REVISION = "e5eb578a89295337b8ff433a035929ce0279e0b6"
 MODEL_REPO = "Comfy-Org/MiniMax-H3"
 PROFILES = ("primary", "fp8", "int8-encoder", "fp8-int8-encoder")
+DEFAULT_PROFILE = "int8-encoder"
 
 
 def manifest():
     return json.loads((ASSETS / "models.json").read_text())
 
 
-def model_files(profile="primary"):
+def model_files(profile=DEFAULT_PROFILE):
     if profile not in PROFILES:
         raise ValueError(f"Unknown profile {profile!r}; choose from {PROFILES}")
     keys = ["diffusion_fp8" if profile.startswith("fp8") else "diffusion",

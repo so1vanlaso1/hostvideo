@@ -6,36 +6,36 @@ import json
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from h3_pipeline.config import ASSETS, model_files, write_json
+from h3_pipeline.config import ASSETS, DEFAULT_PROFILE, model_files, write_json
 
 
 def api_graph():
-    models = model_files()
+    models = model_files(DEFAULT_PROFILE)
     graph = {}
     def add(node_id, class_type, **inputs):
         graph[str(node_id)] = {"class_type": class_type, "inputs": inputs}
     context = ["201", 0]
     add(200, "H3Begin", job_id="example", memory_level=0)
-    add(201, "H3RecordSettings", context=["200", 0], width=1056, height=608, length=362,
+    add(201, "H3RecordSettings", context=["200", 0], width=1344, height=768, length=362,
         prompt="A realistic dance with native synchronized audio.", seed=1,
-        diffusion=models["diffusion"]["path"], encoder=models["encoder"]["path"], ref_image_size="match", reference_mapping="[]")
+        diffusion=models["diffusion"]["path"], encoder=models["encoder"]["path"], ref_image_size="max", reference_mapping="[]")
     add(127, "H3UNETLoader", unet_name=Path(models["diffusion"]["path"]).name, weight_dtype="default", context=context)
     add(128, "H3CLIPLoader", clip_name=Path(models["encoder"]["path"]).name, type="minimax", device="default", context=context)
     add(119, "H3VAELoader", vae_name=Path(models["video_vae"]["path"]).name, context=context)
     add(120, "H3VAELoader", vae_name=Path(models["audio_vae"]["path"]).name, context=context)
-    add(145, "H3LoraLoader", model=["127", 0], lora_name=Path(models["lora"]["path"]).name, strength_model=1.0, context=context)
     add(136, "H3ReferenceToVideo", clip=["128", 0], vae=["119", 0], audio_vae=["120", 0],
-        prompt="A realistic dance with native synchronized audio.", width=1056, height=608, length=362, ref_image_size="match", context=context)
+        prompt="A realistic dance with native synchronized audio.", width=1344, height=768, length=362, ref_image_size="max", context=context)
     add(123, "KSamplerSelect", sampler_name="res_multistep")
-    add(124, "H3Scheduler", model=["145", 0], scheduler="beta", steps=4, denoise=1.0, context=context)
-    add(126, "BasicGuider", model=["145", 0], conditioning=["136", 0])
+    add(124, "H3Scheduler", model=["127", 0], scheduler="simple", steps=25, denoise=1.0, context=context)
+    add(126, "BasicGuider", model=["127", 0], conditioning=["136", 0])
     add(129, "RandomNoise", noise_seed=1)
     add(125, "H3Sampler", noise=["129", 0], guider=["126", 0], sampler=["123", 0], sigmas=["124", 0], latent_image=["136", 1], context=context)
     add(122, "H3VideoDecode", samples=["125", 0], vae=["119", 0], context=context)
     add(121, "H3AudioDecode", samples=["125", 0], vae=["120", 0], video_ready=["122", 0], context=context)
     add(130, "CreateVideo", images=["122", 0], audio=["121", 0], fps=24.0, bit_depth=8, color_space="sRGB")
     add(92, "H3SaveVideo", video=["130", 0], filename_prefix="h3/example/clip", context=context,
-        **{"format": "mp4", "format.codec": "h264", "format.codec.encoding": "auto"})
+        **{"format": "mp4", "format.codec": "h264", "format.codec.encoding": "re-encode",
+           "format.codec.encoding.crf": 16.0})
     return graph
 
 
@@ -53,18 +53,32 @@ def ui_graph():
         node["properties"].pop("cnr_id", None)
         node["properties"].pop("ver", None)
         node["properties"]["Node name for S&R"] = name
-    by_id[115]["widgets_values"] = ["16:9 (Widescreen)", 0.6, 32]
-    by_id[115]["widgets_values_named"].update(megapixels=0.6)
+    by_id[115]["widgets_values"] = ["16:9 (Widescreen)", 0.98, 32]
+    by_id[115]["widgets_values_named"].update(megapixels=0.98)
     by_id[132]["widgets_values"] = [15.0]
     by_id[132]["widgets_values_named"] = {"value": 15.0}
-    by_id[124]["widgets_values"][0] = "beta"
-    by_id[124]["widgets_values_named"]["scheduler"] = "beta"
-    by_id[146]["widgets_values"] = [True]
-    by_id[146]["widgets_values_named"] = {"value": True}
+    by_id[124]["widgets_values"] = ["simple", 25, 1.0]
+    by_id[124]["widgets_values_named"].update(scheduler="simple", steps=25)
+    by_id[143]["widgets_values"] = [25, "fixed"]
+    by_id[143]["widgets_values_named"].update(value=25)
+    by_id[146]["widgets_values"] = [False]
+    by_id[146]["widgets_values_named"] = {"value": False}
+    encoder = Path(model_files(DEFAULT_PROFILE)["encoder"]["path"]).name
+    by_id[128]["widgets_values"][0] = encoder
+    by_id[128]["widgets_values_named"]["clip_name"] = encoder
+    by_id[128]["properties"]["models"] = [{"name": encoder,
+        "url": f"https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/{encoder}",
+        "directory": "text_encoders"}]
+    for field in ("widgets_values", "widgets_values_named"):
+        by_id[117][field] = json.loads(json.dumps(by_id[117][field]).replace(
+            "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors", encoder).replace("14.61 GB", "27.14 GB"))
+    by_id[136]["widgets_values"] = ["", 1344, 768, 362, "max"]
+    by_id[136]["widgets_values_named"].update(width=1344, height=768, length=362, ref_image_size="max")
     by_id[138]["widgets_values"] = ["A realistic full-body dance in cinematic lighting. Preserve the dancer's identity and the exact referenced clothing."]
     by_id[138]["widgets_values_named"] = {"value": by_id[138]["widgets_values"][0]}
-    by_id[92]["widgets_values"] = ["h3/browser/clip", "mp4", "h264", "auto"]
-    by_id[92]["widgets_values_named"] = {"filename_prefix": "h3/browser/clip", "format": "mp4", "format.codec": "h264", "format.codec.encoding": "auto"}
+    by_id[92]["widgets_values"] = ["h3/browser/clip", "mp4", "h264", "re-encode", 16.0]
+    by_id[92]["widgets_values_named"] = {"filename_prefix": "h3/browser/clip", "format": "mp4", "format.codec": "h264",
+        "format.codec.encoding": "re-encode", "format.codec.encoding.crf": 16.0}
 
     def new(node_id, kind, widgets, outputs, pos):
         node = {"id": node_id, "type": kind, "pos": pos, "size": [420, 250], "flags": {},
@@ -108,11 +122,12 @@ def ui_graph():
     new(200, "H3Begin", ["browser", 0], [("context", "STRING")], [-2100, 4300])
     by_id[200]["widgets_values_named"] = {"job_id": "browser", "memory_level": 0}
     settings = api_graph()["201"]["inputs"]
-    new(201, "H3RecordSettings", [1056, 608, 362, "", 1, settings["diffusion"], settings["encoder"], "match", "[]"], [("context", "STRING")], [-900, 4300])
+    new(201, "H3RecordSettings", [1344, 768, 362, "", 1, Path(settings["diffusion"]).name, Path(settings["encoder"]).name, "max", "[]"], [("context", "STRING")], [-900, 4300])
     by_id[201]["widgets_values_named"] = {key: value for key, value in settings.items() if key != "context"}
-    new(310, "H3LoadReferenceVideo", ["dance.mp4", 15.0, 0.6, "16:9", 0.0, True],
+    by_id[201]["widgets_values_named"].update(diffusion=Path(settings["diffusion"]).name, encoder=Path(settings["encoder"]).name)
+    new(310, "H3LoadReferenceVideo", ["dance.mp4", 15.0, 0.98, "16:9", 0.0, True],
         [("frames", "IMAGE"), ("paired_audio", "AUDIO"), ("metadata", "STRING")], [-1900, 6500])
-    by_id[310]["widgets_values_named"] = {"file": "dance.mp4", "duration": 15.0, "megapixels": 0.6, "aspect_ratio": "16:9", "start": 0.0, "include_audio": True}
+    by_id[310]["widgets_values_named"] = {"file": "dance.mp4", "duration": 15.0, "megapixels": 0.98, "aspect_ratio": "16:9", "start": 0.0, "include_audio": True}
     new(312, "H3ReferencePrompt", [by_id[138]["widgets_values"][0], "character.png", "outfit.png"],
         [("prompt", "STRING"), ("reference_mapping", "STRING")], [-950, 6500])
     by_id[312]["widgets_values_named"] = {"prompt": by_id[138]["widgets_values"][0], "character_image": "character.png", "clothing_image": "outfit.png"}
@@ -130,23 +145,40 @@ def ui_graph():
     connect(312, 1, 201, "reference_mapping", "STRING", True)
     connect(115, 0, 201, "width", "INT", True)
     connect(115, 1, 201, "height", "INT", True)
-    connect(131, 0, 201, "length", "INT", True)
+    connect(131, 1, 201, "length", "INT", True)
     connect(314, 0, 129, "noise_seed", "INT", True)
     connect(314, 0, 201, "seed", "INT", True)
     connect(132, 0, 310, "duration", "FLOAT", True)
     connect(122, 0, 121, "video_ready", "IMAGE")
+    connect(141, 0, 124, "model", "MODEL")
     for node_id, filename, prompt_field in ((137, "character.png", "character_image"), (139, "outfit.png", "clothing_image")):
-        by_id[node_id]["widgets_values"] = [filename, 0.6, "match", "16:9"]
-        by_id[node_id]["widgets_values_named"] = {"image": filename, "megapixels": 0.6, "ref_image_size": "match", "aspect_ratio": "16:9"}
+        by_id[node_id]["widgets_values"] = [filename, 0.98, "max", "16:9"]
+        by_id[node_id]["widgets_values_named"] = {"image": filename, "megapixels": 0.98, "ref_image_size": "max", "aspect_ratio": "16:9"}
         # Native LoadImage's unused mask output becomes the path output of this CPU loader.
         by_id[node_id]["outputs"][1] = {"name": "path", "type": "STRING", "links": [], "slot_index": 1}
         connect(node_id, 1, 312, prompt_field, "STRING", True)
     graph.update(last_node_id=314, last_link_id=link_id)
-    graph.setdefault("extra", {})["h3_pipeline"] = {"instructions": "Use the provided startup script. Set the same megapixels/aspect on the Resolution Selector and reference loaders. Upload character.png, outfit.png and dance.mp4. Turbo is enabled."}
+    graph.setdefault("extra", {})["h3_pipeline"] = {"instructions": "Quality defaults: native 1344x768, INT8 encoder, 25 base steps, Turbo disabled, max image references, H.264 CRF 16 encoding. Upload character.png, outfit.png and dance.mp4. Set the same megapixels/aspect on the Resolution Selector and reference loaders."}
+    return graph
+
+
+def quality_start_graph():
+    graph = ui_graph()
+    graph["id"] = "dc80e560-cbee-495d-9359-21c16fb4458d"
+    by_id = {n["id"]: n for n in graph["nodes"]}
+    by_id[132]["widgets_values"] = [5.0]
+    by_id[132]["widgets_values_named"] = {"value": 5.0}
+    by_id[310]["widgets_values"][1] = 5.0
+    by_id[310]["widgets_values_named"]["duration"] = 5.0
+    by_id[201]["widgets_values"][2] = 124
+    by_id[201]["widgets_values_named"]["length"] = 124
+    by_id[136]["widgets_values"][3] = 124
+    by_id[136]["widgets_values_named"]["length"] = 124
     return graph
 
 
 if __name__ == "__main__":
     write_json(ASSETS / "workflows" / "ref2va_api.json", api_graph())
     write_json(ASSETS / "workflows" / "ref2va_16gb_ui.json", ui_graph())
+    write_json(ASSETS / "workflows" / "ref2va_quality_5s_098mp.json", quality_start_graph())
     print("Built API and UI workflows from the pinned official template")

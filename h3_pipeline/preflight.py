@@ -4,7 +4,7 @@ import platform
 import shutil
 import subprocess
 
-from .config import model_files
+from .config import DEFAULT_PROFILE, model_files
 
 
 def allocated_ram():
@@ -48,7 +48,7 @@ def kernel_smoke(profile):
     return results
 
 
-def preflight(root, profile="primary", kernels=False, require_gpu=True):
+def preflight(root, profile=DEFAULT_PROFILE, kernels=False, require_gpu=True):
     import psutil
     path = Path(root)
     existing = path
