@@ -1,0 +1,1232 @@
+# MiniMax H3 15-Second Low-VRAM Pipeline
+
+Build a local MiniMax H3 generation pipeline around:
+
+**Comfy-Org/MiniMax-H3**
+
+Repository/model source:
+https://huggingface.co/Comfy-Org/MiniMax-H3
+
+Do NOT build around the raw `MiniMaxAI/MiniMax-H3` Hugging Face repository.
+
+Use the Comfy-Org repackaged `.safetensors` components designed for native ComfyUI loading.
+
+The primary target hardware is:
+
+- NVIDIA RTX 5060 Ti
+- preferably 16 GB VRAM
+- 32 GB RAM minimum
+- 64 GB RAM preferred
+- NVMe SSD
+- Linux preferred
+
+The pipeline only needs to generate a **single video up to approximately 15 seconds**.
+
+Do not implement multi-shot / long-video chaining unless added later as a separate feature.
+
+---
+
+# 1. Primary use case
+
+The main workflow should be:
+
+```text
+reference dance video
++
+character identity image
++
+one or more clothing reference images
++
+text prompt
+↓
+MiniMax H3 Ref2VA
+↓
+~15-second generated video
++
+native synchronized audio
+```
+
+Example:
+
+```text
+Video 1 = original dance / motion reference
+
+Picture 1 = target character identity
+Picture 2 = outfit / clothing reference
+Picture 3 = optional second clothing or style reference
+
+Prompt
+↓
+Ref2VA conditioning
+↓
+MiniMax H3
+↓
+15-sec generated clip
+```
+
+The intent is for:
+
+- `<Video 1>` to provide motion/action/camera reference
+- `<Picture 1>` to establish character appearance
+- `<Picture 2>` etc. to provide garment/style information
+
+Do not assume the model will automatically understand which image serves which role.
+
+The prompt must explicitly associate every reference with its intended purpose.
+
+---
+
+# 2. Use Ref2VA, not FL2VA
+
+Use:
+
+```text
+minimax_h3_ref2va_pruned_int8_convrot.safetensors
+```
+
+as the primary diffusion model.
+
+Do NOT use FL2VA for the primary workflow.
+
+Reason:
+
+Ref2VA is designed to accept combinations of:
+
+- reference images
+- reference videos
+- reference video audio
+- standalone reference audio
+
+and is therefore the appropriate H3 mode for motion + character + clothing references.
+
+The official ComfyUI Ref2VA workflow should be used as the baseline implementation:
+
+```text
+video_minimax_h3_r2v.json
+```
+
+Do not redesign the conditioning system from scratch until the official workflow works.
+
+---
+
+# 3. Required Comfy-Org model files
+
+## Diffusion model
+
+Put in:
+
+```text
+ComfyUI/models/diffusion_models/
+```
+
+Use:
+
+```text
+minimax_h3_ref2va_pruned_int8_convrot.safetensors
+```
+
+This is the main low-memory Ref2VA diffusion model.
+
+Fallback if INT8 ConvRot cannot run correctly:
+
+```text
+minimax_h3_ref2va_pruned_fp8_scaled.safetensors
+```
+
+Do not default to BF16.
+
+---
+
+# 4. Text / vision encoder
+
+Put in:
+
+```text
+ComfyUI/models/text_encoders/
+```
+
+Primary choice:
+
+```text
+qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
+```
+
+This should be preferred for the low-VRAM build.
+
+Alternative:
+
+```text
+qwen3vl_32b_minimax_h3_int8_convrot.safetensors
+```
+
+Do NOT use the BF16 Qwen3-VL encoder unless debugging quality or compatibility.
+
+Avoid replacing the Comfy-Org encoder with an arbitrary GGUF Q2 model.
+
+The encoder should remain compatible with ComfyUI's native MiniMax H3 conditioning implementation.
+
+---
+
+# 5. Video VAE
+
+Put in:
+
+```text
+ComfyUI/models/vae/
+```
+
+Use the current Comfy-Org H3 video VAE:
+
+```text
+minimax_h3_video_vae_int8_convrot.safetensors
+```
+
+The implementation must preserve MiniMax H3's native chunked/tiled VAE behavior.
+
+Do not wrap it in an inefficient generic decode implementation if the H3 VAE already performs internal chunking.
+
+---
+
+# 6. Audio VAE
+
+Also put in:
+
+```text
+ComfyUI/models/vae/
+```
+
+Use:
+
+```text
+minimax_h3_audio_vae_fp32.safetensors
+```
+
+MiniMax H3 produces audio and video jointly.
+
+The final output should retain the generated synchronized audio rather than stripping it.
+
+---
+
+# 7. Turbo LoRA
+
+Put in:
+
+```text
+ComfyUI/models/loras/
+```
+
+For Ref2VA use:
+
+```text
+minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors
+```
+
+The initial performance profile should therefore be:
+
+```text
+4 diffusion steps
+```
+
+Do not use a FL2V Turbo LoRA with the Ref2VA diffusion model.
+
+The first stable implementation should prioritize the official compatible 4-step Ref2V Turbo configuration.
+
+---
+
+# 8. Recommended directory structure
+
+Final relevant model directory should resemble:
+
+```text
+ComfyUI/
+└── models/
+    ├── diffusion_models/
+    │   └── minimax_h3_ref2va_pruned_int8_convrot.safetensors
+    │
+    ├── text_encoders/
+    │   └── qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
+    │
+    ├── vae/
+    │   ├── minimax_h3_video_vae_int8_convrot.safetensors
+    │   └── minimax_h3_audio_vae_fp32.safetensors
+    │
+    └── loras/
+        └── minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors
+```
+
+---
+
+# 9. Software environment
+
+Prefer:
+
+```text
+Linux
+latest stable NVIDIA driver
+recent ComfyUI
+recent PyTorch build compatible with RTX 50-series
+CUDA 13.0-compatible PyTorch environment where practical
+```
+
+Comfy-Org specifically recommends INT8 ConvRot diffusion models when the environment can use PyTorch with CUDA 13.0.
+
+Before installing everything, verify:
+
+```python
+import torch
+
+print(torch.__version__)
+print(torch.version.cuda)
+print(torch.cuda.get_device_name())
+print(torch.cuda.get_device_capability())
+```
+
+Do not proceed with INT8 ConvRot benchmarking until CUDA/PyTorch recognizes the RTX 5060 Ti correctly.
+
+---
+
+# 10. Start from the official ComfyUI Ref2VA workflow
+
+Do not initially build a completely custom graph.
+
+Start from the official template:
+
+```text
+Comfy-Org/workflow_templates
+templates/video_minimax_h3_r2v.json
+```
+
+Make that workflow generate correctly first.
+
+Then progressively introduce low-VRAM modifications.
+
+The official workflow uses the MiniMax H3 reference-to-video node and supports reference images/videos/audio.
+
+---
+
+# 11. Inputs
+
+The pipeline API should expose approximately:
+
+```python
+generate(
+    prompt,
+    reference_video=None,
+    character_images=[],
+    clothing_images=[],
+    additional_reference_images=[],
+    reference_audio=None,
+    duration=15.0,
+    megapixels=0.6,
+    seed=None
+)
+```
+
+Internally map them into H3 reference ordering.
+
+Example:
+
+```text
+ref_video_1  = dance.mp4
+
+ref_image_1  = character.png
+ref_image_2  = outfit_top.png
+ref_image_3  = outfit_bottom.png
+```
+
+Then expose these identities to the prompt as:
+
+```text
+<Video 1>
+<Picture 1>
+<Picture 2>
+<Picture 3>
+```
+
+The mapping must be deterministic.
+
+Never silently reorder references.
+
+---
+
+# 12. Prompt construction
+
+The prompt should explicitly tell H3 what each reference represents.
+
+Example structure:
+
+```text
+<Picture 1> is the identity and appearance of the dancer.
+
+<Picture 2> defines the dancer's outfit.
+
+<Video 1> defines the dance choreography, body movement,
+timing and camera movement.
+
+Generate the same person from <Picture 1>, wearing the
+clothing shown in <Picture 2>, performing the choreography
+and motion from <Video 1>.
+
+Maintain the same face, hairstyle, body proportions and
+outfit throughout the entire shot.
+
+Natural body motion, coherent hands and limbs, consistent
+clothing, cinematic realistic lighting.
+```
+
+Do not simply write:
+
+```text
+use picture 1 and video 1
+```
+
+Reference roles must be explicit.
+
+---
+
+# 13. Reference-image resolution
+
+The official Ref2VA workflow supports a reference-image sizing mode roughly corresponding to:
+
+```text
+match
+```
+
+or
+
+```text
+max
+```
+
+Start with:
+
+```text
+ref_image_size = match
+```
+
+This scales references closer to generation resolution and reduces reference-token cost.
+
+Use:
+
+```text
+max
+```
+
+only if identity or garment details are insufficient.
+
+High-resolution references remain involved throughout sampling and therefore increase inference cost.
+
+---
+
+# 14. Initial generation resolution
+
+Start at:
+
+```text
+0.6 megapixels
+16:9
+```
+
+Approximately:
+
+```text
+~1024 × 600-class resolution
+```
+
+depending on H3's resolution snapping requirements.
+
+Do not begin at 1 MP.
+
+Validation order:
+
+```text
+0.4 MP
+↓
+0.6 MP
+↓
+0.7 MP
+↓
+0.8 MP
+↓
+1.0 MP
+```
+
+Increase one parameter at a time.
+
+---
+
+# 15. Duration
+
+Target:
+
+```text
+15 seconds maximum
+24 fps
+~362 H3 frames
+```
+
+Use H3's valid temporal frame-count rules.
+
+Do not simply calculate:
+
+```text
+15 × 24 = 360
+```
+
+and assume every frame count is valid.
+
+Use ComfyUI's native MiniMax H3 duration/frame conversion logic.
+
+The official workflow already converts duration into a valid H3 frame length.
+
+Reuse it.
+
+---
+
+# 16. Sampling settings
+
+Initial Ref2VA configuration:
+
+```text
+CFG: 1.0
+
+Sampler:
+res_multistep
+
+Steps:
+4
+
+Turbo:
+minimax_h3_ref2v_turbo_4step_v0.1
+
+Batch:
+1
+```
+
+For Ref2VA, begin with the scheduler used/recommended by the official current template.
+
+Test:
+
+```text
+beta
+```
+
+and:
+
+```text
+normal
+```
+
+before assuming `simple` is ideal.
+
+Reference-heavy prompts may benefit from beta/normal scheduling.
+
+Do not tune scheduler and resolution simultaneously.
+
+---
+
+# 17. Core low-VRAM architecture
+
+Do NOT attempt to keep:
+
+```text
+Qwen3-VL
++
+H3 diffusion
++
+video VAE
++
+audio VAE
++
+all decoded frames
+```
+
+resident in GPU VRAM simultaneously.
+
+Treat GPU memory as a working cache.
+
+Conceptually:
+
+```text
+SYSTEM RAM
+
+Qwen weights
+inactive H3 layers
+inactive VAE components
+conditioning
+decoded frames
+reference preprocessing
+         │
+         │ dynamic transfer
+         ▼
+GPU VRAM
+
+active H3 layers
+current attention buffers
+current latents
+currently executing VAE
+temporary tensors
+```
+
+This is the essential design principle.
+
+---
+
+# 18. Phase-based execution
+
+Implement generation as explicit stages.
+
+## Stage A — Reference preprocessing
+
+Load:
+
+```text
+dance/reference video
+character image
+clothing images
+optional audio
+```
+
+Resize oversized images.
+
+Do not feed unnecessary 4K character/outfit images when generating at 0.6 MP.
+
+---
+
+## Stage B — Qwen3-VL conditioning
+
+Load:
+
+```text
+qwen3vl_32b_minimax_h3_nvfp4_awq
+```
+
+Process:
+
+```text
+prompt
+reference images
+reference video representations
+reference audio if applicable
+```
+
+Produce H3 conditioning.
+
+Once conditioning is complete:
+
+```text
+offload / partially unload Qwen3-VL
+```
+
+if diffusion requires the VRAM.
+
+Do not keep the full encoder resident solely because it was used earlier.
+
+---
+
+## Stage C — H3 latent construction
+
+Create the joint:
+
+```text
+video latent
++
+audio latent
+```
+
+for the requested duration.
+
+Do not allocate decoded RGB frames yet.
+
+---
+
+## Stage D — H3 diffusion sampling
+
+Load / activate:
+
+```text
+minimax_h3_ref2va_pruned_int8_convrot
+```
+
+Apply:
+
+```text
+minimax_h3_ref2v_turbo_4step_v0.1
+```
+
+Run:
+
+```text
+4 steps
+CFG 1
+res_multistep
+batch 1
+```
+
+Allow ComfyUI's model management system to partially unload components when necessary.
+
+Do not manually force complete model eviction on every step.
+
+---
+
+## Stage E — video VAE decode
+
+Once sampling completes:
+
+make enough VRAM available for the video VAE.
+
+Do not retain unnecessary diffusion activations.
+
+Decode the video latent using:
+
+```text
+minimax_h3_video_vae_int8_convrot
+```
+
+Prefer H3's native chunked decode implementation.
+
+Avoid accidentally creating:
+
+```text
+large FP32 output buffer
++
+second FP16 output copy
+```
+
+when the H3 decoder can write directly into the appropriate output representation.
+
+---
+
+## Stage F — move video to CPU
+
+Once decoded RGB video frames are no longer required by a GPU operation:
+
+```python
+frames = frames.cpu()
+```
+
+then release GPU references.
+
+Do not leave hundreds of RGB frames in VRAM.
+
+---
+
+## Stage G — audio decode
+
+Decode the audio half using:
+
+```text
+minimax_h3_audio_vae_fp32
+```
+
+Move output waveform back to CPU.
+
+---
+
+## Stage H — encode output
+
+Mux:
+
+```text
+video frames
++
+native generated audio
+```
+
+into:
+
+```text
+MP4
+H.264/H.265 video
+AAC audio
+24 fps
+```
+
+Use ffmpeg or ComfyUI's current video creation node.
+
+---
+
+# 19. Copy memory-management ideas from MiniMax-H3-LongVideos_OPTIMIZED
+
+Use this project as a memory-management reference:
+
+```text
+RealRebelAI/MiniMax-H3-LongVideos_OPTIMIZED
+```
+
+Do NOT copy its long-video chaining logic unless required.
+
+Study especially:
+
+```text
+runtime.py
+```
+
+and its handling of:
+
+- intermediate dtype
+- VAE decode
+- CPU frame storage
+- CUDA cache cleanup
+- ComfyUI dynamic residency
+
+---
+
+# 20. FP16 intermediates
+
+Where supported, start ComfyUI with FP16 intermediates enabled.
+
+The pipeline must not unnecessarily widen decoded video buffers from:
+
+```text
+FP16
+```
+
+to:
+
+```text
+FP32
+```
+
+A 15-second sequence contains hundreds of RGB frames, so unnecessary widening can consume several additional gigabytes.
+
+---
+
+# 21. Do not aggressively unload everything
+
+Avoid code such as:
+
+```python
+unload_all_models()
+```
+
+between every normal stage.
+
+Avoid pathological calls equivalent to requesting essentially infinite memory from ComfyUI's `free_memory()` function.
+
+Instead allow ComfyUI to:
+
+```text
+partially unload
+↓
+make enough VRAM available
+↓
+execute next model
+```
+
+Full unloading should be reserved for:
+
+- checkpoint changes
+- explicit pipeline reset
+- severe OOM recovery
+
+---
+
+# 22. CUDA cleanup
+
+At meaningful stage boundaries:
+
+```python
+del large_temp
+torch.cuda.empty_cache()
+```
+
+can be appropriate.
+
+But do not call `empty_cache()`:
+
+```text
+per attention block
+per diffusion layer
+per frame
+```
+
+because it can significantly hurt performance.
+
+---
+
+# 23. OOM fallback strategy
+
+Do not immediately fail generation.
+
+Use this fallback ladder.
+
+Baseline:
+
+```text
+15 sec
+0.6 MP
+4 steps
+Ref2V Turbo
+NVFP4 Qwen
+INT8 ConvRot H3
+INT8 ConvRot video VAE
+batch 1
+dynamic offload
+```
+
+If OOM:
+
+### Level 1
+
+Ensure Qwen3-VL has been offloaded before diffusion sampling.
+
+### Level 2
+
+Reduce reference processing from:
+
+```text
+max
+```
+
+to:
+
+```text
+match
+```
+
+### Level 3
+
+Clear stale CUDA tensors and cached blocks.
+
+### Level 4
+
+Increase partial model offloading.
+
+### Level 5
+
+Reduce:
+
+```text
+0.6 MP → 0.5 MP
+```
+
+### Level 6
+
+Reduce:
+
+```text
+0.5 MP → 0.4 MP
+```
+
+Preserve the 15-second duration if possible.
+
+Do not shorten duration until spatial-memory reductions have been attempted.
+
+---
+
+# 24. Reference-video handling
+
+The dance video should not necessarily be generated at its original resolution.
+
+Decode only the amount of information required by H3.
+
+Avoid keeping:
+
+```text
+full source video
++
+all decoded source RGB frames
++
+H3 conditioning tensors
+```
+
+resident on GPU simultaneously.
+
+Source-video preprocessing should primarily happen on CPU unless H3 explicitly requires GPU processing.
+
+---
+
+# 25. Clothing-reference implementation
+
+Initially do NOT build an external clothing segmentation / garment-transfer pipeline.
+
+First test native H3 Ref2VA reference understanding.
+
+Use:
+
+```text
+Picture 1 → identity
+
+Picture 2 → top/outfit
+
+Picture 3 → optional lower garment
+```
+
+and describe their relationships explicitly.
+
+Example:
+
+```text
+<Picture 1> defines the dancer's face, hair and identity.
+
+<Picture 2> defines the complete outfit.
+
+<Video 1> defines only the choreography, pose sequence,
+body motion and camera movement.
+
+Generate <Picture 1> wearing exactly the outfit from
+<Picture 2> while reproducing the choreography from
+<Video 1>.
+```
+
+If H3 fails to preserve clothing sufficiently, add a more specialized preprocessing/control stage later.
+
+Do not complicate version 1 unnecessarily.
+
+---
+
+# 26. Performance monitoring
+
+For every generation log:
+
+```text
+GPU model
+total VRAM
+peak allocated VRAM
+peak reserved VRAM
+
+system RAM peak
+
+model names
+quantization types
+
+input video dimensions
+output width
+output height
+megapixels
+frame count
+duration
+
+Qwen encode time
+H3 load/offload time
+H3 sampling time
+video VAE decode time
+audio VAE decode time
+video encoding time
+
+total wall time
+```
+
+Also calculate:
+
+```text
+total generation seconds
+÷
+output duration
+```
+
+Example:
+
+```text
+780 sec / 15 sec
+= 52 compute sec per output second
+```
+
+---
+
+# 27. Development test sequence
+
+Do not begin development by repeatedly attempting a full 15-second clip.
+
+Use:
+
+## Test 1
+
+```text
+3–5 sec
+0.4 MP
+4 steps
+```
+
+Verify end-to-end execution.
+
+---
+
+## Test 2
+
+```text
+5 sec
+0.6 MP
+4 steps
+```
+
+Measure VRAM.
+
+---
+
+## Test 3
+
+```text
+15 sec
+0.6 MP
+4 steps
+```
+
+This is the actual target.
+
+---
+
+## Test 4
+
+Add:
+
+```text
+character picture
++
+dance video
+```
+
+Confirm identity and motion references work.
+
+---
+
+## Test 5
+
+Add:
+
+```text
+clothing picture
+```
+
+Confirm multi-reference prompting works.
+
+---
+
+## Test 6
+
+Only after stability:
+
+```text
+0.7 MP
+0.8 MP
+1.0 MP
+```
+
+benchmark separately.
+
+---
+
+# 28. Pipeline modules
+
+Keep implementation modular.
+
+```text
+MiniMaxH3Pipeline
+│
+├── ModelManager
+│   ├── diffusion
+│   ├── text encoder
+│   ├── video VAE
+│   └── audio VAE
+│
+├── ReferenceManager
+│   ├── images
+│   ├── videos
+│   └── audio
+│
+├── PromptBuilder
+│
+├── ConditioningEncoder
+│
+├── LatentBuilder
+│
+├── H3Sampler
+│
+├── VideoDecoder
+│
+├── AudioDecoder
+│
+├── MemoryManager
+│
+├── OutputMuxer
+│
+└── PerformanceMonitor
+```
+
+Memory movement should be centralized in `MemoryManager`.
+
+Avoid random:
+
+```python
+.cuda()
+.cpu()
+empty_cache()
+```
+
+calls scattered throughout the project.
+
+---
+
+# 29. Important non-goals for version 1
+
+Do NOT initially implement:
+
+- long-video shot chaining
+- multiple sequential 15-second clips
+- custom H3 architecture
+- training
+- LoRA training
+- garment segmentation
+- pose extraction
+- ControlNet
+- optical-flow transfer
+- external face swap
+- arbitrary GGUF text encoders
+- distributed inference
+- multi-GPU inference
+
+Get native Ref2VA working first.
+
+---
+
+# 30. Baseline target
+
+Version 1 is successful when this works reliably:
+
+```text
+Input:
+
+1 × reference dance video
+1 × character identity image
+1 × clothing image
+1 × prompt
+
+Generation:
+
+MiniMax H3 Ref2VA
+Comfy-Org model files
+pruned INT8 ConvRot diffusion
+NVFP4-AWQ Qwen3-VL
+INT8 ConvRot video VAE
+FP32 audio VAE
+Ref2V Turbo 4-step
+CFG 1
+res_multistep
+~0.6 MP
+~15 sec
+~362 valid frames
+24 fps
+batch 1
+
+Output:
+
+MP4
+generated video
+native synchronized audio
+```
+
+Primary engineering goals, in order:
+
+```text
+1. Correct output
+2. No CUDA OOM
+3. Stable 15-second generation
+4. Character/reference consistency
+5. Clothing consistency
+6. Motion similarity
+7. Lower generation time
+8. Higher resolution
+```
+
+Do not sacrifice stability to maximize resolution during the first implementation.

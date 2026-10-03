@@ -1,0 +1,13 @@
+{
+  "template_repository": "Comfy-Org/workflow_templates",
+  "template_revision": "0e5c5efb32ba6f3365d6da07da64aaf668157042",
+  "template_sha256": "afeea99e9fd5a1456df348e0573e289c1243f2f28546fc95c1c963f808d61ddb",
+  "comfy_revision": "e9027f2b30f37bb3052714eb08fcf479542f4fc0",
+  "model_revision": "e5eb578a89295337b8ff433a035929ce0279e0b6",
+  "retrieved_date": "2026-10-03",
+  "modifications": [
+    "Turbo on, four steps, beta scheduler, 0.6 MP, 15 seconds",
+    "Thin native telemetry and CPU memory adapters",
+    "Dance-video loader, character/outfit prompt mapping, generated audio retained"
+  ]
+}
