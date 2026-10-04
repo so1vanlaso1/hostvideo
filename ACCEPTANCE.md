@@ -2,7 +2,9 @@
 
 Quality defaults: INT8 ConvRot diffusion and video VAE, INT8 Qwen3-VL encoder, FP32 audio VAE, 25 base steps, Turbo disabled, `res_multistep` / `simple`, native 1344×768 output, `max` image references, H.264 CRF 16. Automatic OOM quality reductions are disabled.
 
-Status: model download and SHA256 verification, GPU quantization kernels, and native workflow validation passed. Full visual/reference acceptance remains pending. Public ComfyUI page and browser API return HTTP 200 without credentials.
+**4 October remediation status:** the code fixes and local regression tests are recorded in [AUDIT.md](AUDIT.md). The documented instance endpoints currently refuse connections. The results below are historical and do not validate the new SageAttention policy, source build or post-fix multi-section memory use.
+
+Historical status: model download and SHA256 verification, GPU quantization kernels, and native workflow validation passed. Full visual/reference acceptance remains pending. Public ComfyUI page and browser API return HTTP 200 without credentials.
 
 | Stage | Requested settings | Runtime/OOM | Audio/video | Quality observations | Pass/fail |
 |---|---|---|---|---|---|

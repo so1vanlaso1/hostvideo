@@ -11,7 +11,7 @@ def command(paths, port=8188):
             "--models-directory", str(paths.models), "--input-directory", str(paths.input),
             "--output-directory", str(paths.output), "--temp-directory", str(paths.root / "temp"),
             "--user-directory", str(paths.root / "user"), "--enable-dynamic-vram", "--fp16-intermediates",
-            "--reserve-vram", "1", "--use-pytorch-cross-attention", "--cache-none", "--preview-method", "none"]
+            "--reserve-vram", "1", "--use-sage-attention", "--cache-none", "--preview-method", "none"]
 
 
 def serve(root, port=8188, print_command=False, profile=DEFAULT_PROFILE):

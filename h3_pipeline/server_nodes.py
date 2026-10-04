@@ -52,20 +52,22 @@ class H3RecordSettings:
     @classmethod
     def INPUT_TYPES(cls):
         return {"required": {"context": ("STRING", {"forceInput": True}),
-                             "width": ("INT", {"default": 1344, "min": 32, "max": 1344}),
-                             "height": ("INT", {"default": 768, "min": 32, "max": 1344}),
+                             "width": ("INT", {"default": 1344, "min": 32, "max": nodes.MAX_RESOLUTION}),
+                             "height": ("INT", {"default": 768, "min": 32, "max": nodes.MAX_RESOLUTION}),
                              "length": ("INT", {"default": 362, "min": 5, "max": 362}),
                              "prompt": ("STRING", {"default": "", "multiline": True}),
                              "seed": ("INT", {"default": 1, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": False}),
                              "diffusion": ("STRING", {"default": "minimax_h3_ref2va_pruned_int8_convrot.safetensors"}),
                              "encoder": ("STRING", {"default": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors"}),
                              "ref_image_size": (["max", "match"],),
-                             "reference_mapping": ("STRING", {"default": "[]", "multiline": True})}}
+                             "reference_mapping": ("STRING", {"default": "[]", "multiline": True})},
+                "optional": {"turbo": ("BOOLEAN", {"default": False}),
+                             "lora": ("STRING", {"default": ""})}}
     RETURN_TYPES = ("STRING",)
     FUNCTION = "record"
     CATEGORY = "H3 Pipeline"
 
-    def record(self, context, **settings):
+    def record(self, context, turbo=False, lora="", **settings):
         from .references import MAX_PIXELS
         if settings["width"] * settings["height"] > MAX_PIXELS:
             raise ValueError("Canvas exceeds native H3 1344x768 pixel area")
@@ -77,7 +79,7 @@ class H3RecordSettings:
                         sampler="res_multistep", guidance=1, batch_size=1,
                         video_vae="minimax_h3_video_vae_int8_convrot.safetensors",
                         audio_vae="minimax_h3_audio_vae_fp32.safetensors",
-                        lora=None, turbo=False)
+                        lora=lora or None, turbo=turbo)
         runtime.current(context).data.update(settings)
         return (context,)
 

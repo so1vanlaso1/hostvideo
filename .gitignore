@@ -12,6 +12,9 @@ venv/
 .env
 .env.*
 private/
+.h3-vast.env
+.h3-vast.env.tmp
+.runtime/
 
 # Large runtime dependencies
 models/

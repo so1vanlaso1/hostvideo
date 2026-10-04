@@ -12,7 +12,7 @@ def parser():
     p = argparse.ArgumentParser(prog="h3", description="MiniMax H3 native Ref2VA, one 16 GB GPU")
     p.add_argument("--root", default=str(RuntimePaths.default().root), help="Persistent runtime root (or H3_ROOT)")
     sub = p.add_subparsers(dest="command", required=True)
-    pre = sub.add_parser("preflight", help="Check RAM, GPU, CUDA and optional quantization kernels")
+    pre = sub.add_parser("preflight", help="Check RAM, GPU, CUDA and optional quantization/SageAttention kernels")
     pre.add_argument("--profile", choices=PROFILES, default=DEFAULT_PROFILE)
     pre.add_argument("--kernels", action="store_true")
     pre.add_argument("--local", action="store_true", help="Allow a CPU development machine")

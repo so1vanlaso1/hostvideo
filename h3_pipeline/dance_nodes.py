@@ -16,9 +16,38 @@ from .dance_workflow import KEEP_ORIGINAL, dance_canvas, plan_sections, section_
 from .media import prepare_image, probe, verify_output
 from .references import FPS
 from .workflow import build_workflow
+from .dance_reports import register_report, fail_report
 
 VIDEO_SUFFIXES = {".mp4", ".mov", ".webm", ".mkv"}
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
+MODEL_LOADER_TYPES = {"H3UNETLoader", "H3CLIPLoader", "H3VAELoader", "H3LoraLoader"}
+
+
+def add_section_graph(graph, template, index, shared_models):
+    """Load one model set per dance job, even with ComfyUI's cache disabled.
+
+    The native prompt tracker retains dynamic models until the entire expanded
+    prompt ends. Separate loaders per section therefore retain separate copies
+    of every checkpoint. Link all sections to the first section's loaders.
+    """
+    copied = {}
+    reused = set()
+    for key, node in template.items():
+        if node["class_type"] in MODEL_LOADER_TYPES:
+            if key in shared_models:
+                copied[key] = shared_models[key]
+                reused.add(key)
+                continue
+            copied[key] = graph.node(node["class_type"], id=f"models_{key}")
+            shared_models[key] = copied[key]
+        else:
+            copied[key] = graph.node(node["class_type"], id=f"section{index}_{key}")
+    for key, node in template.items():
+        if key in reused:
+            continue  # Keep shared loader dependencies on the first section.
+        for field, value in node["inputs"].items():
+            copied[key].set_input(field, copied[value[0]].out(value[1]) if is_link(value) else value)
+    return copied
 
 
 def input_files(suffixes):
@@ -148,10 +177,13 @@ class H3DanceWorkflow:
                   "frame_count": total_frames, "duration": total_frames / FPS, "width": width, "height": height,
                   "source_start_seconds": start_seconds, "seed": seed, "steps": steps, "turbo": turbo,
                   "profile": profile, "audio_mode": "source" if paired and audio_mode == "source" else "generated",
+                  "max_section_seconds": max_section_seconds, "context_frames": context_frames,
                   "normalized_source": str(normalized), "sections": sections,
                   "assembly": "Chronological cuts, exact core frames; context/padding excluded. Model pose fidelity requires visual review."}
         write_json(work / "report.json", report)
+        register_report(work / "report.json")
         graph = GraphBuilder()
+        shared_models = {}
         previous = None
         for section in sections:
             index = section["index"]
@@ -193,10 +225,7 @@ class H3DanceWorkflow:
             write_json(section_dir / "workflow-api.json", template)
             write_json(section_dir / "references.json", [r.dict() for r in mapping])
             (section_dir / "prompt.txt").write_text(effective_prompt + "\n")
-            copied = {key: graph.node(node["class_type"], id=f"section{index}_{key}") for key, node in template.items()}
-            for key, node in template.items():
-                for field, value in node["inputs"].items():
-                    copied[key].set_input(field, copied[value[0]].out(value[1]) if is_link(value) else value)
+            copied = add_section_graph(graph, template, index, shared_models)
             if previous:
                 copied["200"].set_input("previous_section", previous)
             previous = copied["92"].out(0)
@@ -221,10 +250,17 @@ class H3DanceBeginSection:
         if previous_section and not output_path(previous_section).is_file():
             raise RuntimeError("The preceding dance section has not been saved")
         report = json.loads((work / "report.json").read_text())
+        register_report(work / "report.json")
+        try:
+            context = runtime.begin(f"{report['job_id']}-section-{section_index}", folder_paths.get_output_directory(), 0,
+                                    report_path=work / "report.json", section_index=section_index)
+        except BaseException as exc:
+            fail_report(work / "report.json", str(exc), runtime.failure_status(exc), section_index, "section_start")
+            raise
         report["status"] = "running"
         report["sections"][section_index - 1]["status"] = "running"
         write_json(work / "report.json", report)
-        return (runtime.begin(f"{report['job_id']}-section-{section_index}", folder_paths.get_output_directory(), 0),)
+        return (context,)
 
 
 class H3DanceLoadImage:
@@ -273,10 +309,8 @@ class H3DanceSaveSection:
                 extract_frame(kept, folder / "last-frame.png", section["keep_frames"] - 1)
             section.update(status="completed", video_path=str(kept), server=runtime.finish(context))
             write_json(work / "report.json", report)
-        except Exception as exc:
-            section.update(status="failed", error=str(exc))
-            report["status"] = "failed"
-            write_json(work / "report.json", report)
+        except BaseException as exc:
+            fail_report(work / "report.json", str(exc), runtime.failure_status(exc), section_index, "video_encoding")
             raise
         return (str(kept.relative_to(Path(folder_paths.get_output_directory()).resolve())),)
 
@@ -292,21 +326,20 @@ class H3DanceAssemble:
 
     def assemble(self, job_directory, last_section):
         work = output_path(job_directory)
-        if not output_path(last_section).is_file():
-            raise RuntimeError("The final dance section is missing")
         report = json.loads((work / "report.json").read_text())
-        if any(s.get("status") != "completed" for s in report["sections"]):
-            raise RuntimeError("Every dance section must complete before assembly")
         destination = work / "generated.mp4"
         clips = [work / f"section-{s['index']}" / "kept.mp4" for s in report["sections"]]
         try:
+            if not output_path(last_section).is_file():
+                raise RuntimeError("The final dance section is missing")
+            if any(s.get("status") != "completed" for s in report["sections"]):
+                raise RuntimeError("Every dance section must complete before assembly")
             media = assemble_dance_video(clips, destination, report["frame_count"],
                 report["normalized_source"] if report["audio_mode"] == "source" else None)
             report.update(status="completed", video_path=str(destination), media=media)
             write_json(work / "report.json", report)
-        except Exception as exc:
-            report.update(status="failed", error=str(exc))
-            write_json(work / "report.json", report)
+        except BaseException as exc:
+            fail_report(work / "report.json", str(exc), runtime.failure_status(exc), stage="assembly")
             raise
         preview = ui.PreviewVideo([ui.SavedResult(destination.name, job_directory, io.FolderType.output)]).as_dict()
         return {"result": (InputImpl.VideoFromFile(str(destination)), str(destination)), "ui": preview}

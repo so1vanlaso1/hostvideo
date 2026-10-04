@@ -83,6 +83,175 @@ class NativeContractTests(unittest.TestCase):
         valid, error, outputs, node_errors = asyncio.run(execution.validate_prompt("native-turbo", graph, None))
         self.assertTrue(valid, json.dumps({"error": error, "nodes": node_errors}, indent=2))
 
+    def test_wide_and_tall_saved_graphs_validate(self):
+        import execution
+        from h3_pipeline.dance_workflow import dance_canvas
+        for dimensions in ((2560, 1080), (1080, 2560)):
+            width, height = dance_canvas(*dimensions, 0.98)
+            graph = build_workflow(prompt="A dancer", images=[], video=None, audio=None,
+                include_video_audio=False, width=width, height=height, length=107, seed=1, job_id="wide")
+            valid, error, _, errors = asyncio.run(execution.validate_prompt("wide", graph, None))
+            self.assertTrue(valid, json.dumps({"error": error, "nodes": errors}))
+
+    def test_shared_turbo_settings_survive_each_section(self):
+        for turbo in (True, False):
+            graph = build_workflow(prompt="Dance", images=[], video=None, audio=None, include_video_audio=False,
+                width=128, height=96, length=22, seed=1, job_id="turbo-metadata", turbo=turbo, steps=4 if turbo else 25)
+            for section in range(3):
+                context = custom.H3Begin().begin(f"turbo-metadata-{section}", 0)[0]
+                settings = {**graph["201"]["inputs"], "context": context}
+                custom.H3RecordSettings().record(**settings)
+                report = runtime.finish(context)
+                self.assertEqual(report["turbo"], turbo)
+                self.assertEqual(report["lora"], graph["145"]["inputs"]["lora_name"] if turbo else None)
+
+    def test_stage_failures_and_interruptions_update_owning_report(self):
+        from comfy.model_management import InterruptProcessingException
+        from h3_pipeline.config import write_json
+        for label in ("diffusion_checkpoint_load", "reference_conditioning_and_latents", "h3_sampling",
+                      "video_vae_decode", "audio_vae_decode", "video_encoding"):
+            for error in (RuntimeError("injected failure"), InterruptProcessingException()):
+                path = self.root / "output/h3/dance/failure-test/report.json"
+                completed = {"index": 1, "status": "completed", "video_path": "preserved.mp4"}
+                write_json(path, {"job_id": "failure-test", "status": "running", "sections": [
+                    completed, {"index": 2, "status": "running"}, {"index": 3}]})
+                context = runtime.begin("failure-test-section-2", self.root / "output", 0,
+                                        report_path=path, section_index=2)
+                with self.assertRaises(type(error)):
+                    with runtime.stage(context, label):
+                        raise error
+                report = json.loads(path.read_text())
+                status = "interrupted" if isinstance(error, InterruptProcessingException) else "failed"
+                self.assertEqual(report["status"], status)
+                self.assertEqual(report["failed_section"], 2)
+                self.assertEqual(report["sections"][0], completed)
+                self.assertEqual(report["sections"][1]["status"], status)
+                self.assertEqual(report["sections"][2]["status"], "cancelled")
+                self.assertEqual(report["sections"][1]["server"]["failed_stage"], label)
+                self.assertIsNone(runtime._active)
+
+    def test_executor_errors_outside_adapters_are_scoped_to_the_prompt(self):
+        import execution
+        from types import SimpleNamespace
+        from app.assets.manager import NoAssets
+        from comfy.cli_args import args
+        from comfy.model_management import InterruptProcessingException
+        from comfy_execution.utils import CurrentNodeContext
+        from h3_pipeline.config import write_json
+        from h3_pipeline.dance_reports import register_report, _prompt_reports
+
+        class UnprofiledFailure:
+            @classmethod
+            def INPUT_TYPES(cls):
+                return {"required": {"context": ("STRING",)}}
+            RETURN_TYPES = ()
+            FUNCTION = "execute"
+            OUTPUT_NODE = True
+
+            def execute(self, context):
+                raise failure
+
+        unrelated = self.root / "output/h3/dance/unrelated/report.json"
+        write_json(unrelated, {"status": "planned", "sections": [{"index": 1}]})
+        with CurrentNodeContext("unrelated-prompt", "1"):
+            register_report(unrelated)
+        try:
+            for failure in (RuntimeError("outside adapter"), InterruptProcessingException()):
+                path = self.root / "output/h3/dance/executor-failure/report.json"
+                write_json(path, {"job_id": "executor-failure", "status": "planned", "sections": [{"index": 1}]})
+                server = SimpleNamespace(client_id=None, last_node_id=None, send_sync=lambda *args: None)
+                executor = execution.PromptExecutor(server, execution.CacheType.NONE,
+                    {"ram": 0, "ram_inactive": 0}, asset_manager=NoAssets(args))
+                graph = {"1": {"class_type": "H3DanceBeginSection", "inputs": {
+                    "job_directory": "h3/dance/executor-failure", "section_index": 1}},
+                    "2": {"class_type": "H3UnprofiledFailure", "inputs": {"context": ["1", 0]}}}
+                with patch.dict(nodes.NODE_CLASS_MAPPINGS, {"H3UnprofiledFailure": UnprofiledFailure}):
+                    executor.execute(graph, "failing-prompt", execute_outputs=["2"])
+                self.assertFalse(executor.success)
+                report = json.loads(path.read_text())
+                self.assertEqual(report["status"], "interrupted" if isinstance(failure, InterruptProcessingException) else "failed")
+                self.assertEqual(report["failed_section"], 1)
+                self.assertEqual(json.loads(unrelated.read_text())["status"], "planned")
+                self.assertNotIn("failing-prompt", _prompt_reports)
+                self.assertIsNone(runtime._active)
+        finally:
+            _prompt_reports.pop("unrelated-prompt", None)
+
+    def test_attention_policy_blocks_checkpoint_and_vae_overrides_and_restores(self):
+        import torch
+        from types import SimpleNamespace
+        from comfy.ldm.modules import attention as attn
+        from comfy.ldm.minimax import model, vae
+        from comfy.text_encoders import llama, qwen_vl
+        from h3_pipeline.attention import attention_policy
+        from unittest.mock import Mock
+        monitor = SimpleNamespace(data={})
+        original = model.optimized_attention, vae.optimized_attention, vae.COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE
+        forbidden = Mock(side_effect=AssertionError("Comfy Kitchen/override attention must not run"))
+        q = torch.randn(1, 2, 5, 64)
+        with self.assertRaisesRegex(ValueError, "restore probe"):
+            with attention_policy(monitor, "reference_conditioning_and_latents"):
+                containers = [attn.AttentionTensorContainer(t.clone()) for t in (q, q, q)]
+                result = model.optimized_attention(*containers, 2, skip_reshape=True,
+                    preferred_attention=SimpleNamespace(function=forbidden),
+                    transformer_options={"optimized_attention_override": forbidden})
+                self.assertEqual(result.shape, (1, 5, 128))
+                self.assertFalse(vae.COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE)
+                decoder = vae.Attention(2, 64, operations=torch.nn)
+                norm = SimpleNamespace(weight=None, eps=1e-6)
+                def linear(layer, x, *args, **kwargs):
+                    return torch.cat((q.transpose(1, 2).reshape(1, 5, 128),) * 3, -1) if layer is decoder.to_qkv else x
+                with patch("comfy.ops.QuantizedTensor", torch.Tensor), patch("comfy.ops.linear_input_act", side_effect=linear), \
+                     patch("comfy.quant_ops.ck.int8_attention", forbidden):
+                    result = decoder(q.transpose(1, 2).reshape(1, 5, 128), None, norm, None, None)
+                self.assertEqual(result.shape, (1, 5, 128))
+                for module in (llama, qwen_vl):
+                    module.optimized_attention_for_device(q.device)(q, q, q, 2, skip_reshape=True)
+                import comfy.ops
+                comfy.ops.scaled_dot_product_attention(q, q, q, is_causal=True)
+                forbidden.assert_not_called()
+                raise ValueError("restore probe")
+        self.assertEqual(original, (model.optimized_attention, vae.optimized_attention, vae.COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE))
+        self.assertEqual(monitor.data["attention"]["effective_calls"], {
+            "diffusion": {"pytorch": 1}, "video_vae": {"pytorch": 1},
+            "text_encoder": {"pytorch": 2}, "audio_vae": {"pytorch": 1}})
+
+    def test_sage_success_and_native_fallback_are_counted_separately(self):
+        import torch
+        from types import SimpleNamespace
+        from comfy.ldm.modules import attention as attn
+        from comfy.ldm.minimax import model
+        from h3_pipeline.attention import attention_policy
+
+        # CPU-backed tensor advertising CUDA ONLY to probe dispatch control flow.
+        # The Sage kernel is explicitly mocked; this is not a CUDA correctness test.
+        class DispatchTensor(torch.Tensor):
+            @property
+            def device(self):
+                return torch.device("cuda")
+
+        q = torch.randn(1, 2, 5, 64, dtype=torch.float16).as_subclass(DispatchTensor)
+        monitor = SimpleNamespace(data={})
+        with patch.object(attn, "SAGE_ATTENTION_IS_AVAILABLE", True), \
+             patch.object(attn, "sageattn", side_effect=[q, RuntimeError("synthetic kernel failure")], create=True):
+            with attention_policy(monitor, "h3_sampling"):
+                model.optimized_attention(q, q, q, 2, skip_reshape=True)
+                model.optimized_attention(q, q, q, 2, skip_reshape=True)
+        self.assertEqual(monitor.data["attention"]["effective_calls"], {"diffusion": {"sage": 1, "pytorch": 1}})
+
+    def test_sage_preflight_rejects_unpinned_build_before_kernel_execution(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        from h3_pipeline.preflight import attention_smoke
+        from h3_pipeline.attention import SAGE_VERSION
+        kernel = Mock(side_effect=AssertionError("Unpinned kernel must not run"))
+        with patch.dict(sys.modules, {"sageattention": SimpleNamespace(sageattn=kernel)}), \
+             patch("h3_pipeline.preflight.attention_metadata", return_value={
+                 "sageattention_version": SAGE_VERSION, "sageattention_revision": "wrong"}):
+            with self.assertRaisesRegex(RuntimeError, "rerun setup"):
+                attention_smoke()
+        kernel.assert_not_called()
+
     def test_video_paired_audio_and_standalone_audio_graph_validates_natively(self):
         import execution
         from PIL import Image
@@ -225,10 +394,29 @@ class NativeContractTests(unittest.TestCase):
             self.assertEqual(expanded[dependency[0]]["class_type"], "H3DanceSaveSection")
         references = [n for n in expanded.values() if n["class_type"] == "H3ReferenceToVideo"]
         self.assertTrue(all(len([k for k in n["inputs"] if k.startswith("ref_images.")]) <= 4 for n in references))
+        for kind, expected in (("H3UNETLoader", 1), ("H3CLIPLoader", 1), ("H3VAELoader", 2)):
+            self.assertEqual(sum(n["class_type"] == kind for n in expanded.values()), expected)
+        for field in ("model", "clip", "vae", "audio_vae"):
+            consumers = references if field != "model" else [n for n in expanded.values() if n["class_type"] == "BasicGuider"]
+            users = [n["inputs"][field][0] for n in consumers]
+            self.assertEqual(len(set(users)), 1, field)
         # Every selected outfit is represented in its own prompt/mapping, never a
         # competing set of clothing references in a single native H3 render.
         mappings = [json.loads(n["inputs"]["reference_mapping"]) for n in expanded.values() if n["class_type"] == "H3RecordSettings"]
         self.assertEqual(len({Path(m[2]["path"]).name for m in mappings}), 12)
+
+    def test_dance_turbo_uses_one_shared_lora_and_has_no_section_dependency_cycle(self):
+        import execution
+        job = self.dance_fixture(outfits=3)
+        job.update(turbo=True, steps=4)
+        expanded = dance.H3DanceWorkflow().expand(**job)["expand"]
+        valid, error, _, errors = asyncio.run(execution.validate_prompt("dance-turbo-expanded", expanded, None))
+        self.assertTrue(valid, json.dumps({"error": error, "nodes": errors}))
+        loras = [key for key, n in expanded.items() if n["class_type"] == "H3LoraLoader"]
+        self.assertEqual(len(loras), 1)
+        for node in expanded.values():
+            if node["class_type"] in ("BasicGuider", "H3Scheduler"):
+                self.assertEqual(node["inputs"]["model"], [loras[0], 0])
 
     def test_general_dance_synthetic_save_and_assembly_without_model_weights(self):
         job = self.dance_fixture()
@@ -297,6 +485,74 @@ class NativeContractTests(unittest.TestCase):
         reports = list((self.root / "output/h3/dance").glob("*/report.json"))
         matching = [json.loads(p.read_text()) for p in reports if json.loads(p.read_text()).get("status") == "completed"]
         self.assertTrue(matching)
+
+    def test_dance_models_load_once_and_are_reused_with_native_cache_disabled(self):
+        import execution
+        import torch
+        from types import SimpleNamespace
+        from contextlib import ExitStack
+        from app.assets.manager import NoAssets
+        from comfy.cli_args import args
+        from comfy.model_patcher import ModelPatcher
+        job = self.dance_fixture(outfits=3)
+        loaded, consumed, tracker_sizes = [], [], []
+
+        class ProbePatcher(ModelPatcher):
+            def is_dynamic(self):
+                return True
+
+            def set_in_use_by_current_prompt(self, value):
+                self.in_current_prompt = value
+
+        def load_model(self, context, **kwargs):
+            runtime.current(context)
+            patcher = ProbePatcher(torch.nn.Linear(1, 1), torch.device("cpu"), torch.device("cpu"))
+            loaded.append(patcher)
+            return (patcher if "unet_name" in kwargs else SimpleNamespace(patcher=patcher),)
+
+        class UseModels:
+            @classmethod
+            def INPUT_TYPES(cls):
+                return {"required": {"model": ("MODEL",), "clip": ("CLIP",), "vae": ("VAE",),
+                    "audio_vae": ("VAE",), "images": ("IMAGE",), "audio": ("AUDIO",), "context": ("STRING",)}}
+            RETURN_TYPES = ("IMAGE", "AUDIO")
+            FUNCTION = "use"
+
+            def use(self, model, clip, vae, audio_vae, images, audio, context):
+                runtime.current(context)
+                models = (model, clip.patcher, vae.patcher, audio_vae.patcher)
+                consumed.append(tuple(id(m) for m in models))
+                self_outer.assertTrue(all(m.in_current_prompt for m in models))
+                tracker_sizes.append(len(executor.prompt_model_tracker.models))
+                return images, audio
+
+        def synthetic_graph(**options):
+            graph = build_workflow(**options)
+            graph = {key: value for key, value in graph.items() if key in ("200", "201", "310", "130", "127", "128", "119", "120")}
+            graph["330"] = {"class_type": "H3TestUseModels", "inputs": {
+                "model": ["127", 0], "clip": ["128", 0], "vae": ["119", 0], "audio_vae": ["120", 0],
+                "images": ["310", 0], "audio": ["310", 1], "context": ["201", 0]}}
+            graph["130"]["inputs"].update(images=["330", 0], audio=["330", 1])
+            return graph
+
+        self_outer = self
+        server = SimpleNamespace(client_id=None, last_node_id=None, send_sync=lambda *args: None)
+        executor = execution.PromptExecutor(server, execution.CacheType.NONE,
+            {"ram": 0, "ram_inactive": 0}, asset_manager=NoAssets(args))
+        with ExitStack() as stack:
+            stack.enter_context(patch.dict(nodes.NODE_CLASS_MAPPINGS, {"H3TestUseModels": UseModels}))
+            stack.enter_context(patch.object(dance, "build_workflow", side_effect=synthetic_graph))
+            for loader in (custom.H3UNETLoader, custom.H3CLIPLoader, custom.H3VAELoader):
+                stack.enter_context(patch.object(loader, loader.FUNCTION, load_model))
+            executor.execute({"1": {"class_type": "H3DanceWorkflow", "inputs": job}},
+                "dance-model-reuse", execute_outputs=["1"])
+        self.assertTrue(executor.success, str(executor.status_messages))
+        self.assertEqual(len(loaded), 4)
+        self.assertEqual(len(consumed), 3)
+        self.assertEqual(len(set(consumed)), 1)
+        self.assertEqual(tracker_sizes, [4, 4, 4])
+        self.assertEqual(executor.prompt_model_tracker.models, {})
+        self.assertTrue(all(not m.in_current_prompt for m in loaded))
 
 
 if __name__ == "__main__":

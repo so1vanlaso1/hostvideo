@@ -46,6 +46,29 @@ class DancePlanTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "more outfits"):
             plan_sections(5, ["outfit"] * 6)
 
+    def test_generation_ceiling_includes_context_and_alignment(self):
+        for seconds in (1, 2, 5, 15):
+            for context in (0, 4, 12, 48):
+                if (int(seconds * 24) - 5) // 17 * 17 + 5 <= 2 * context:
+                    with self.assertRaisesRegex(ValueError, "too short"):
+                        plan_sections(720, ["outfit"], max_section_seconds=seconds, context_frames=context)
+                    continue
+                sections = self.assert_timeline(720, ["outfit"], max_section_seconds=seconds, context_frames=context)
+                self.assertTrue(all(s["generation_frames"] <= seconds * 24 for s in sections))
+                self.assertTrue(all(s["generation_seconds"] == s["generation_frames"] / 24 for s in sections))
+        for seconds in (0.2, 0.8):
+            with self.assertRaisesRegex(ValueError, "too short"):
+                plan_sections(720, [], max_section_seconds=seconds)
+
+    def test_wide_and_tall_canvases_follow_native_limits(self):
+        for width, height in ((2560, 1080), (1080, 2560), (100000, 1), (1, 100000)):
+            w, h = dance_canvas(width, height, 0.98)
+            self.assertLessEqual(max(w, h), 16384)
+            self.assertLessEqual(w * h, 1344 * 768)
+        for width, height in ((0, 10), (-1, 20)):
+            with self.assertRaises(ValueError):
+                dance_canvas(width, height, 0.98)
+
     def test_all_character_background_combinations_and_clothing_roles(self):
         for character in (None, "replacement-person.png"):
             for background in (None, "replacement-scene.png"):

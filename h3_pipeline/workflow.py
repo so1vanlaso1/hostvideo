@@ -53,7 +53,8 @@ def build_workflow(*, prompt, images, video, audio, include_video_audio, width, 
         conditioning["ref_audios.ref_audio_0"] = ["311", 0]
     graph["201"]["inputs"].update(width=width, height=height, length=length, prompt=prompt, seed=seed,
                                         diffusion=files["diffusion"]["path"], encoder=files["encoder"]["path"],
-                                        ref_image_size=ref_image_size)
+                                        ref_image_size=ref_image_size, turbo=turbo,
+                                        lora=files["lora"]["path"].split("/", 1)[1] if turbo else "")
     graph["92"]["inputs"]["filename_prefix"] = f"h3/{job_id}/clip"
     return graph
 

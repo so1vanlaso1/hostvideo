@@ -5,6 +5,7 @@ import shutil
 import subprocess
 
 from .config import DEFAULT_PROFILE, model_files
+from .attention import SAGE_VERSION, SAGE_REVISION, metadata as attention_metadata
 
 
 def allocated_ram():
@@ -44,6 +45,34 @@ def kernel_smoke(profile):
                 raise RuntimeError(f"{name} kernel produced invalid output")
             results[name] = "passed"
             del x, weight, quantized, output
+    torch.cuda.empty_cache()
+    return results
+
+
+def attention_smoke():
+    """Exercise actual Sage CUDA kernels and compare to FP32 SDPA on small H3 shapes."""
+    import torch
+    from sageattention import sageattn
+    results = attention_metadata()
+    if results["sageattention_version"] != SAGE_VERSION or results["sageattention_revision"] != SAGE_REVISION:
+        raise RuntimeError(f"Expected SageAttention {SAGE_VERSION} at {SAGE_REVISION}; rerun setup")
+    results["checks"] = []
+    with torch.inference_mode(), torch.random.fork_rng(devices=[torch.cuda.current_device()]):
+        torch.manual_seed(1234)
+        for dtype in (torch.float16, torch.bfloat16):
+            for heads, dim in ((56, 128), (32, 64)):
+                q, k, v = [torch.randn(1, heads, 257, dim, device="cuda", dtype=dtype) for _ in range(3)]
+                output = sageattn(q, k, v, tensor_layout="HND", is_causal=False, smooth_k=False)
+                expected = torch.nn.functional.scaled_dot_product_attention(q.float(), k.float(), v.float())
+                torch.cuda.synchronize()
+                if output.shape != q.shape or not torch.isfinite(output).all().item():
+                    raise RuntimeError("SageAttention produced invalid output")
+                relative_rmse = ((output.float() - expected).square().mean() / expected.square().mean()).sqrt().item()
+                if relative_rmse > 0.1:
+                    raise RuntimeError(f"SageAttention relative RMSE {relative_rmse:.4f} exceeds 0.1")
+                results["checks"].append({"dtype": str(dtype), "heads": heads, "head_dim": dim,
+                                           "relative_rmse": relative_rmse, "status": "passed"})
+    results["effective_calls"] = {"diffusion_shape": {"sage": 2}, "video_vae_shape": {"sage": 2}}
     torch.cuda.empty_cache()
     return results
 
@@ -90,6 +119,7 @@ def preflight(root, profile=DEFAULT_PROFILE, kernels=False, require_gpu=True):
                 report["errors"].append("This deployment targets the 16 GB GPU variant")
             if kernels and not report["errors"]:
                 report["kernels"] = kernel_smoke(profile)
+                report["attention"] = attention_smoke()
         elif require_gpu:
             report["errors"].append("PyTorch cannot access CUDA")
     except Exception as exc:

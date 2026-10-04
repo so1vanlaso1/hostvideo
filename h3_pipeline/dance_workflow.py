@@ -7,9 +7,12 @@ KEEP_ORIGINAL = "Keep original"
 
 
 def dance_canvas(width, height, megapixels):
+    if any(isinstance(n, bool) or not isinstance(n, int) or n <= 0 for n in (width, height)):
+        raise ValueError("Source dimensions must be positive integers")
     if not math.isfinite(megapixels) or not 0.1 <= megapixels <= 1:
         raise ValueError("megapixels must be between 0.1 and 1")
-    scale = min(1, math.sqrt(min(MAX_PIXELS, megapixels * 1024**2) / (width * height)))
+    scale = min(1, 16384 / width, 16384 / height,
+                math.sqrt(min(MAX_PIXELS, megapixels * 1024**2) / (width * height)))
     w, h = max(32, round(width * scale / 32) * 32), max(32, round(height * scale / 32) * 32)
     while w * h > MAX_PIXELS:
         if w >= h:
@@ -21,7 +24,7 @@ def dance_canvas(width, height, megapixels):
 
 def plan_sections(total_frames, outfits, outfit_durations=(), max_section_seconds=5, context_frames=12):
     """Keep every source frame once; H3 alignment applies only to context windows."""
-    if total_frames < 5:
+    if isinstance(total_frames, bool) or not isinstance(total_frames, int) or total_frames < 5:
         raise ValueError("The dance video must contain at least five frames at 24 fps")
     if not math.isfinite(max_section_seconds) or not 0.2 <= max_section_seconds <= 15:
         raise ValueError("max_section_seconds must be between 0.2 and 15")
@@ -46,7 +49,13 @@ def plan_sections(total_frames, outfits, outfit_durations=(), max_section_second
         boundaries = [i * total_frames // count for i in range(count + 1)]
     if any(b <= a for a, b in zip(boundaries, boundaries[1:])):
         raise ValueError("Each outfit must have at least one frame on the timeline")
-    max_core = min(round(max_section_seconds * FPS), MAX_FRAMES - 2 * context_frames - 16)
+    # Round DOWN to the native grid before budgeting context. No generation
+    # window, including context and padding, may exceed the requested ceiling.
+    frame_budget = min(math.floor(max_section_seconds * FPS), MAX_FRAMES)
+    max_generation = frame_budget - (frame_budget - 5) % 17
+    max_core = max_generation - 2 * context_frames
+    if max_generation < 5 or max_core < 1:
+        raise ValueError("max_section_seconds is too short for the requested context_frames and H3's five-frame minimum")
     sections = []
     for outfit_index, (start, end) in enumerate(zip(boundaries, boundaries[1:])):
         chunks = math.ceil((end - start) / max_core)
@@ -61,6 +70,7 @@ def plan_sections(total_frames, outfits, outfit_durations=(), max_section_second
                              "start_frame": core_start, "end_frame": core_end,
                              "keep_frames": core_end - core_start,
                              "reference_start_frame": reference_start, "generation_frames": length,
+                             "generation_seconds": length / FPS,
                              "trim_start_frame": core_start - reference_start,
                              "padding_frames": max(0, reference_start + length - total_frames)})
     return sections

@@ -8,6 +8,7 @@ import threading
 import time
 
 from .config import COMFY_REVISION, MODEL_REVISION, write_json
+from .attention import attention_policy, metadata as attention_metadata
 
 
 class PerformanceMonitor:
@@ -27,6 +28,7 @@ class PerformanceMonitor:
                      "system_ram_measurement": "process tree RSS, sampled every 250 ms",
                      "gpu_peak_allocated_bytes": 0, "gpu_peak_reserved_bytes": 0,
                      "torch_version": torch.__version__, "cuda_version": torch.version.cuda}
+        self.data["attention"] = attention_metadata()
         if torch.cuda.is_available():
             device = torch.cuda.current_device()
             torch.cuda.reset_peak_memory_stats(device)
@@ -61,7 +63,7 @@ class PerformanceMonitor:
             if self.torch.cuda.is_available():
                 self.torch.cuda.synchronize()
         except BaseException as exc:
-            self.data.update(status="failed", failed_stage=name, error=str(exc))
+            self.data.update(status=failure_status(exc), failed_stage=name, error=str(exc) or type(exc).__name__)
             raise
         finally:
             with self.lock:
@@ -142,20 +144,37 @@ _active = None
 _memory = None
 
 
-def begin(job_id, directory, level):
+def begin(job_id, directory, level, *, report_path=None, section_index=None):
     global _active, _memory
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", job_id):
         raise ValueError("job_id must contain 1-100 letters, digits, underscores or hyphens")
     if level not in (0, 1, 2):
         raise ValueError("memory_level must be 0, 1 or 2")
     if _active:
-        _active.finish("abandoned")
+        _active.data["error"] = "Superseded by another H3 context"
+        finish(_active.data["job_id"], "failed")
     if _memory:
         _memory.restore()
     _memory = MemoryManager()
-    _memory.configure(level)
-    _active = PerformanceMonitor(job_id, directory, level)
+    try:
+        _memory.configure(level)
+        _active = PerformanceMonitor(job_id, directory, level)
+    except BaseException:
+        _memory.restore()
+        _memory = None
+        raise
+    from comfy_execution.utils import get_executing_context
+    execution_context = get_executing_context()
+    if execution_context:
+        _active.data["prompt_id"] = execution_context.prompt_id
+    if report_path is not None:
+        _active.data.update(dance_report=str(report_path), section_index=section_index)
     return job_id
+
+
+def failure_status(exc):
+    from comfy.model_management import InterruptProcessingException
+    return "interrupted" if isinstance(exc, (InterruptProcessingException, KeyboardInterrupt)) else "failed"
 
 
 def current(context):
@@ -172,20 +191,28 @@ def memory():
 def stage(context, name):
     monitor = current(context)
     try:
-        with monitor.stage(name), model_activity(monitor):
+        with monitor.stage(name), model_activity(monitor), attention_policy(monitor, name):
             yield monitor
-    except BaseException:
+    except BaseException as exc:
         # Do not keep the traceback or tensor objects in the metrics record.
-        finish(context, "failed")
+        finish(context, failure_status(exc))
         raise
 
 
 def finish(context, status="completed"):
     global _active
     monitor = current(context)
-    result = monitor.finish(status)
-    memory().restore()
-    _active = None
+    try:
+        result = monitor.finish(status)
+        if status != "completed" and result.get("dance_report"):
+            from .dance_reports import fail_report
+            fail_report(result["dance_report"], result.get("error", status), status,
+                        result["section_index"], result.get("failed_stage"), result)
+    finally:
+        try:
+            memory().restore()
+        finally:
+            _active = None
     return result
 
 

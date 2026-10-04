@@ -2,34 +2,34 @@
 
 This implementation generates reference-driven clips with native audio using Comfy-Org checkpoints and CPU offloading. Quality defaults supersede the original speed settings in `guide.txt`: native 1344×768 output, 25 base sampling steps, Turbo disabled, INT8 Qwen3-VL encoder, and `max` image references. It provides ComfyUI browser workflows and a Python/CLI client. **The 15-second fit and reference quality must be measured on your Vast GPU.** Local tests do not establish visual quality.
 
-## 1. Rent and upload
+## 1. Clone and run one script on Vast
 
-Choose a **Linux x86-64 Ubuntu/PyTorch SSH template**, with one **RTX 5060 Ti 16 GB**, a compatible **R580-or-newer host driver**, **64 GB allocated RAM preferred** (32 GB guide minimum), eight CPU cores and a **150 GB or larger NVMe volume mounted at `/data`**. Avoid a template that automatically starts another ComfyUI server. The NVIDIA driver belongs to the Vast host.
+Choose a **Linux x86-64 Ubuntu/Debian SSH template with the CUDA 13.0 development toolkit (`nvcc`)**, an **RTX 5060 Ti 16 GB**, an **R580-or-newer host driver**, **64 GB allocated RAM preferred**, eight CPU cores and **150 GB or more disk**. Avoid templates that automatically start another ComfyUI server. The NVIDIA driver belongs to the Vast host.
 
-Install these basic tools in the remote container if absent:
-
-```bash
-apt-get update
-apt-get install -y git curl ca-certificates ffmpeg tmux python3 python3-venv util-linux
-```
-
-From your computer, use the SSH host/port shown by Vast:
+SSH into your instance, clone this repository and run:
 
 ```bash
-scp -P SSH_PORT -r /Users/nhonyqua/vidgen/Sourcecode root@SSH_HOST:/data/h3-source
-ssh -p SSH_PORT root@SSH_HOST
+git clone https://github.com/so1vanlaso1/hostvideo.git
+cd hostvideo
+bash setup.sh
 ```
 
-Then on Vast:
+If `git` is missing from the template, install it first with `apt-get update && apt-get install -y git`.
+
+That one script installs missing system tools (as root or with passwordless sudo), prepares Python 3.11, installs the pinned ComfyUI/PyTorch/SageAttention environment, checks CUDA kernels, exports browser workflows, downloads/verifies the models and starts ComfyUI in a detached **tmux** session. ComfyUI keeps running when you disconnect SSH. The first run downloads roughly 50 GiB of models and compiles SageAttention, so allow time for both. Setup reports success only after the API responds.
+
+Storage is selected automatically: a mounted `/data` volume first, then `/workspace` if it exists, otherwise `.runtime/` inside the checkout. Settings are saved in the ignored `.h3-vast.env` file, so later helper commands use the same root, profile and port. Setup logs go to `logs/setup.log` under the runtime root. If setup is interrupted, rerun `bash setup.sh`: completed models are reused and partial Hugging Face downloads resume. Stop an already running server before rerunning setup.
+
+Optional overrides:
 
 ```bash
-cd /data/h3-source
-export H3_ROOT=/data/minimax-h3
-bash scripts/setup_vast.sh --download-models
-source "$H3_ROOT/venv/bin/activate"
+bash setup.sh --root /workspace/minimax-h3 --port 8188 --profile int8-encoder
+bash setup.sh --no-start       # Install and download without starting
+bash setup.sh --skip-download  # Install only; skip downloads and startup
+bash setup.sh --help
 ```
 
-Setup pins ComfyUI, the official workflow and model revisions. It installs Python 3.11, PyTorch **2.13.0 / CUDA 13.0**, torchvision 0.28.0, native ComfyUI dependencies and this package. If Python 3.11 is absent, a separate uv bootstrap environment supplies it. Setup saves the resolved dependency lock, checks CUDA execution and runs small quantization kernel checks **before downloading weights**. No host driver or system Python is replaced.
+`H3_ROOT`, `H3_PROFILE` and `H3_PORT` environment overrides still work. `bash scripts/setup_vast.sh --download-models` remains supported; downloads and startup are now enabled by default. Setup retains the pinned ComfyUI/model revisions and Python **3.11**, PyTorch **2.13.0 / CUDA 13.0**, torchvision **0.28.0** and SageAttention **2.2.0**. It supplies Python through uv when needed, saves the resolved dependency lock and runs CUDA/quantization/attention checks **before downloading weights**. No host driver or system Python is replaced.
 
 The default download contains exactly five checkpoints, approximately **49.8 GiB total**:
 
@@ -43,20 +43,37 @@ The default download contains exactly five checkpoints, approximately **49.8 GiB
 
 Downloads resume through Hugging Face's local cache and are verified against pinned LFS SHA256 hashes. Existing wrong-sized or corrupt models are reported for inspection; they are not deleted. `h3 download-models --verify-existing` rehashes completed files. Keep the download cache when resuming an interrupted download.
 
-The runtime root contains `ComfyUI/`, `venv/`, `models/`, `input/`, `output/`, `jobs/`, `logs/`, `locks/`, `temp/`, `user/` and owner-only `private/`. Keep `/data/h3-source` present because the package and custom nodes are installed from it. A mounted volume is still not an off-host backup.
+The runtime root contains `ComfyUI/`, `venv/`, `models/`, `input/`, `output/`, `jobs/`, `logs/`, `locks/`, `temp/`, `user/` and owner-only `private/`. Keep the cloned source directory present because the package and custom nodes are installed from it. `/workspace` and the checkout fallback use the container disk; destruction/recycling can erase them. A mounted volume is still not an off-host backup.
 
 ## 2. Managed ComfyUI and browser access
 
-On this instance, ComfyUI is already managed by supervisor. See [INSTANCE.md](INSTANCE.md) for its public URL and commands. The user requested public access without authentication; the ComfyUI external port is excluded from Caddy authentication through `AUTH_EXCLUDE=10100` in `/workspace/.env`. `CADDY_HEADER_UP_LOCALHOST=8188` keeps proxy Host/Origin headers consistent for browser API requests. Anyone with the URL can submit jobs. The Vast rental still bills GPU time.
+From the cloned repository on Vast:
 
 ```bash
-supervisorctl status hostvideo
-supervisorctl restart hostvideo
+bash scripts/vast.sh status
+bash scripts/vast.sh logs
+bash scripts/vast.sh stop
+bash scripts/vast.sh start
+bash scripts/vast.sh restart
 ```
 
-The server listens internally on **127.0.0.1:8188**, uses dynamic VRAM, one GiB reserved VRAM, FP16/CPU intermediates, PyTorch attention and disabled node-result caching. Native H3 VAE chunking stays intact. INT8 ConvRot must not use Comfy Kitchen attention; its quantization kernels are still used by checkpoint loaders.
+`restart` stops the current process, including any running generation. The tmux service survives an SSH disconnect; after an instance/container restart, run `bash scripts/vast.sh start` again. For a foreground process or your own supervisor service, use `bash scripts/start_comfy.sh`.
 
-For deployment on another Vast instance, register `scripts/start_comfy.sh` as a supervisor service and expose it through that instance's portal configuration. Set `H3_ROOT` and `H3_PROFILE=int8-encoder` in the service wrapper. The included ngrok helper is an optional separate access method with its own authentication configuration.
+For browser access, run this on **your own computer**, using the SSH host/port shown by Vast:
+
+```bash
+ssh -p SSH_PORT -L 8188:127.0.0.1:8188 root@SSH_HOST
+```
+
+Keep that SSH connection open and visit **http://localhost:8188**. If you chose another `--port`, replace the final `8188` in the forwarding command with that remote port. Setup does not require ngrok or a Vast portal configuration. The optional ngrok helpers remain available: run `source .h3-vast.env`, then `python3 scripts/configure_ngrok.py`, then `bash scripts/start_ngrok.sh` after installing ngrok. The helper creates a browser login policy.
+
+The previously configured instance uses supervisor and its existing portal URL; see [INSTANCE.md](INSTANCE.md) for that instance's commands. Use supervisor to stop it before running setup there.
+
+The server listens internally on **127.0.0.1:8188**, uses dynamic VRAM, one GiB reserved VRAM, FP16/CPU intermediates, SageAttention and disabled node-result caching. Setup builds SageAttention 2.2.0 from pinned upstream revision `d1a57a546c3d395b1ffcbeecc66d81db76f3b4b5`; this version was unavailable on PyPI when checked. Its [upstream build requirements](https://github.com/thu-ml/SageAttention#installation) include a CUDA development toolkit. Setup verifies the imported source path, package revision and representative FP16/BF16 CUDA attention against FP32 SDPA before startup. The editable package must resolve to `h3_pipeline/__init__.py` inside your cloned checkout.
+
+H3 adapters enforce SageAttention for CUDA diffusion and video-VAE attention, and PyTorch SDPA for Qwen text/vision conditioning and the FP32 audio VAE. Checkpoint attention metadata and the video VAE's direct Comfy Kitchen attention branch cannot override this policy. Quantization/ConvRot kernels and native VAE chunking remain enabled. CPU/unsupported-dtype calls use PyTorch; native Sage mask/precision/error fallbacks are retained and counted. Each section's `server.attention` telemetry records the policy, installed Sage revision, and successful backend calls by component; a selected policy alone is not proof of GPU dispatch. GPU performance and quality still require the acceptance checks.
+
+For automatic startup after container restarts, optionally register `scripts/start_comfy.sh` with your template's supervisor. The foreground script reads the saved setup settings; stop the tmux service before switching to supervisor.
 
 ## 3. Browser workflow
 
@@ -67,11 +84,13 @@ For reusable dance videos with wardrobe changes, load **`h3_pipeline/assets/work
 3. Use **Add outfit images (multiple)**, or select an existing uploaded image and add it. Each image defines one complete outfit. The order in **outfit_images** is the appearance order; edit that list to reorder/remove outfits. An empty list preserves the original clothing.
 4. Queue once. The workflow generates all sections sequentially, then previews the assembled video automatically.
 
-There is no nine-outfit limit: each render uses only the current outfit, fixed character/scene references, and the preceding section's appearance reference. Every outfit receives equal time by default. Optionally enter **outfit_durations**, a JSON array of seconds adding up to the selected video's duration. **start_seconds** and **duration_seconds** select a source excerpt; zero duration uses the rest of the video. Long intervals split into renders capped by **max_section_seconds** (five seconds by default, reduced when necessary to fit H3's temporal grid and context). Each outfit must occupy at least one source-timeline frame.
+There is no nine-outfit limit: each render uses only the current outfit, fixed character/scene references, and the preceding section's appearance reference. Every outfit receives equal time by default. Optionally enter **outfit_durations**, a JSON array of seconds adding up to the selected video's duration. **start_seconds** and **duration_seconds** select a source excerpt; zero duration uses the rest of the video. Long intervals split into renders capped by **max_section_seconds** (five seconds by default). This caps the complete inference window, including both context margins and temporal padding: a five-second ceiling allows at most 107 frames on H3's `17k+5` grid, leaving at most 83 retained frames with the default 12-frame context on each side. The report exposes `generation_frames` and `generation_seconds` for every section. Settings too small to hold the context and native minimum are rejected. Each outfit must occupy at least one source-timeline frame.
+
+All sections share one set of model loaders, including the optional Turbo LoRA. This prevents checkpoint RAM from accumulating per section when ComfyUI runs with caching disabled. Restart ComfyUI after deploying this fix; an already expanded, running job retains its original graph.
 
 The workflow normalizes the source to 24 fps once, preserves its aspect ratio with a 32-pixel grid and output area cap, and uses matching chronological excerpts for every section. Extra context frames surround cuts; native `17k+5` alignment and any end padding apply to generation windows only. Assembly removes that context/padding and keeps each timeline frame exactly once. It uses cuts, not crossfades that would blend two dancers/outfits. **audio_mode=source** retains the source soundtrack continuously; silent sources use generated music. **generated** uses each rendered section's audio.
 
-Each queue creates a separate `output/h3/dance/dance-.../` folder containing `generated.mp4`, `report.json`, the expanded API graph, and each section's prompt, references, raw output, trimmed clip and continuity frame. Prepared uploads live under `input/h3-dance/`. The report records the exact outfit/source frame intervals. An interrupted or failed render leaves those files for inspection; it does not assemble a partial sequence or automatically resubmit GPU work.
+Each queue creates a separate `output/h3/dance/dance-.../` folder containing `generated.mp4`, `report.json`, the expanded API graph, and each section's prompt, references, raw output, trimmed clip and continuity frame. Prepared uploads live under `input/h3-dance/`. The report records the exact outfit/source frame intervals and Turbo/LoRA settings for every section. Handled stage failures and executor interruptions mark the main report and active section `failed` or `interrupted`, preserve completed sections, and cancel remaining sections. A hard process kill cannot flush a report. No partial sequence is assembled or automatically resubmitted.
 
 The workflow follows H3's reference-video conditioning rather than guaranteeing exact pose tracking. Shared references and appearance continuity help, but visual identity, background preservation, clothing accuracy and seamless movement across cuts require a GPU render and review. No new model weights are needed beyond the existing selected profile. Restart ComfyUI after updating the source/custom nodes, reload the browser so its upload controls appear, and import the new workflow. `h3 export-workflows` and setup now include it.
 
@@ -96,8 +115,9 @@ Browser jobs produce `output/h3/browser-TIMESTAMP-ID/clip_*.mp4` and `telemetry.
 Place your assets in `examples/assets/` beside the sample `examples/job.json`, or edit its paths. Paths in a job file are relative to that file. Then run on Vast:
 
 ```bash
-source /data/minimax-h3/venv/bin/activate
-cd /data/h3-source
+# Run from the cloned repository.
+source .h3-vast.env
+source "$H3_ROOT/venv/bin/activate"
 h3 generate --job examples/job.json
 ```
 
@@ -178,7 +198,7 @@ python3 -m venv .venv
 Media tests require ffmpeg/ffprobe; set `FFMPEG`/`FFPROBE` to absolute binary paths if they are not on PATH. Optional native contract tests run against the pinned ComfyUI checkout with its dependencies installed:
 
 ```bash
-H3_COMFY_PATH=/path/to/ComfyUI .venv/bin/python tests/native_contract.py
+PYTHONPATH="$PWD" H3_COMFY_PATH=/path/to/ComfyUI .venv/bin/python tests/native_contract.py
 ```
 
 The pristine official graph, its source license, SHA256 and provenance are retained under `h3_pipeline/assets/`. The long-video optimization repository was studied for memory ideas; no restricted runtime code or chaining implementation is included. No model weights or generated demo videos are bundled.

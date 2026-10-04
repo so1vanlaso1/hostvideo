@@ -1,4 +1,20 @@
-# Local validation — 3 October 2026
+# Local validation — 4 October 2026
+
+## Audit remediation — 4 October 2026
+
+**52 Python tests passed:** 29 client/planning/media tests and 23 pinned native integration tests. New coverage verifies the complete generation-window ceiling, wide/tall graph schemas, per-section Turbo metadata, native attention-policy bypass prevention and restoration, observed Sage/PyTorch fallback counts, pinned-build rejection, stage failures/interruption, and prompt-scoped executor failure reporting. The existing shared-model-loader regression remains passing.
+
+JavaScript upload-control tests, shell syntax, Python/JSON parsing, dependency consistency, all four workflow generator comparisons and whitespace checks passed. Native tests used this checkout explicitly on `PYTHONPATH` to avoid the older editable-install location.
+
+Managed startup now selects SageAttention. Setup builds a pinned upstream source revision and requires CUDA 13 development tools; preflight implements representative FP16/BF16 Sage correctness checks. **No Sage CUDA build or kernel execution was validated locally.** Both documented remote endpoints refused connections. This remediation was not deployed, and actual-checkpoint dispatch, memory peaks and visual acceptance remain pending. See [AUDIT.md](AUDIT.md) for the fixes and outstanding checks.
+
+## Model RAM reuse fix — 4 October 2026
+
+The dance expansion now shares one diffusion loader, one encoder loader, two VAE loaders and, when enabled, one Turbo LoRA across all sections. This removes the separate checkpoint copies retained by ComfyUI's prompt model tracker. The original ten-section job peaked at 55.6 GB in section 1 and 105.5 GB in section 2; its process exceeded 148 GB during section 3. That job was stopped at the user's request, with sections 1 and 2 preserved.
+
+**42 tests passed locally:** 26 client/planning/media tests and 16 pinned native integration tests. All 16 native integration tests also passed on the Linux instance. The regression test executes three sections through the actual cache-disabled executor, verifies exactly four model allocations, verifies identical model objects in every section and verifies tracker release at prompt completion. A 12-section graph and the Turbo graph also validate with shared loaders. Compilation and whitespace checks passed.
+
+The fix was deployed and ComfyUI restarted. The newly submitted ten-section browser job contains four model loaders, compared with 40 in the stopped job. A short real-model GPU verification job was interrupted externally before completion, so post-fix multi-section RAM peaks and full-quality completion remain unmeasured.
 
 ## General dance workflow — 4 October 2026
 

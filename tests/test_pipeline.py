@@ -64,6 +64,17 @@ class ReferenceTests(unittest.TestCase):
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_managed_server_selects_sage_and_setup_pins_same_revision(self):
+        from h3_pipeline.server import command
+        from h3_pipeline.config import RuntimePaths
+        from h3_pipeline.attention import SAGE_REVISION
+        cmd = command(RuntimePaths(Path("/tmp/h3-test")))
+        self.assertIn("--use-sage-attention", cmd)
+        self.assertNotIn("--use-pytorch-cross-attention", cmd)
+        setup = (Path(__file__).resolve().parents[1] / "scripts/setup_vast.sh").read_text()
+        self.assertIn(f"SAGE_REVISION={SAGE_REVISION}", setup)
+        self.assertIn("--no-build-isolation", setup)
+
     def graph(self, **overrides):
         settings = dict(prompt="test", images=["job/person.png", "job/outfit.png"], video="job/dance.mp4",
                         audio="job/voice.wav", include_video_audio=True, width=1056, height=608,
