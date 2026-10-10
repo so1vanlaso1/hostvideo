@@ -34,6 +34,21 @@ def parser():
             job.add_argument("--megapixels", type=float, help="Required for optional resolution stage: 0.7, 0.8, 0.98")
     export = sub.add_parser("export-workflows", help="Copy the browser and API workflow files")
     export.add_argument("--directory", required=True, type=Path)
+    quality = sub.add_parser("dance-quality-setup", help="Download the small CPU pose-check model (no video-generation weights)")
+    quality.add_argument("--directory", required=True, type=Path)
+    review = sub.add_parser("dance-review", help="Inspect a local/server dance report and record explicit visual approvals")
+    review.add_argument("--report", required=True, type=Path)
+    review.add_argument("--approve", nargs="+", type=int)
+    review.add_argument("--note", default="")
+    resume = sub.add_parser("dance-resume", help="Rerender selected server sections, or assemble reviewed sections")
+    resume.add_argument("--job-directory", required=True, help="Server-relative output/h3/dance path, e.g. h3/dance/dance-...")
+    resume.add_argument("--sections", nargs="*", type=int, default=[])
+    resume.add_argument("--seed", type=int, default=-1)
+    resume.add_argument("--server", default=os.environ.get("H3_SERVER_URL", "http://127.0.0.1:8188"))
+    resume.add_argument("--timeout", type=int, default=21600)
+    wan = sub.add_parser("dance-wan", help="Run a pose-controlled comparison in a separate installed Wan-Animate environment")
+    wan.add_argument("--job", required=True, type=Path)
+    wan.add_argument("--plan-only", action="store_true")
     return p
 
 
@@ -108,6 +123,30 @@ def main(argv=None):
             for name in ("ref2va_16gb_ui.json", "ref2va_api.json", "ref2va_quality_5s_098mp.json", "dance_general_ui.json"):
                 shutil.copy2(ASSETS / "workflows" / name, args.directory / name)
             print(args.directory.resolve())
+        elif args.command == "dance-quality-setup":
+            from .dance_quality import download_pose_model, require_pose
+            model = download_pose_model(args.directory / "pose_landmarker_lite.task")
+            require_pose(model["path"])
+            write_json(args.directory / "pose-model.json", model)
+            print(json.dumps(model, indent=2))
+        elif args.command == "dance-review":
+            from .dance_resume import approve_sections
+            report = approve_sections(args.report, args.approve, args.note) if args.approve else json.loads(args.report.read_text())
+            print(json.dumps({"status": report["status"], "quality_status": report.get("quality_status"),
+                "sections": [{"index": s["index"], "kind": s.get("kind", "stable"), "status": s.get("status"),
+                              "quality": s.get("quality"), "approval": s.get("approval")} for s in report["sections"]]}, indent=2))
+        elif args.command == "dance-resume":
+            from .client import ComfyClient
+            client = ComfyClient(args.server, os.environ.get("H3_HTTP_USERNAME"), os.environ.get("H3_HTTP_PASSWORD"))
+            info = client.check()
+            if "H3DanceResume" not in info:
+                raise RuntimeError("Restart ComfyUI after updating the dance custom nodes")
+            graph = {"1": {"class_type": "H3DanceResume", "inputs": {
+                "job_directory": args.job_directory, "sections": json.dumps(args.sections), "seed": args.seed}}}
+            print(json.dumps(client.execute(graph, timeout=args.timeout, progress=lambda s: print(s, file=sys.stderr, flush=True)), indent=2))
+        elif args.command == "dance-wan":
+            from .wan_dance import run_wan_job
+            print(json.dumps(run_wan_job(args.job, plan_only=args.plan_only), indent=2))
         elif args.command in ("generate", "benchmark"):
             from .pipeline import MiniMaxH3Pipeline
             job = read_job(args.job.resolve())

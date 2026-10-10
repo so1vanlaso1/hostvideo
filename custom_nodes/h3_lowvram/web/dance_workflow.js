@@ -82,6 +82,23 @@ app.registerExtension({
                 addOutfits([existing.value]);
             });
             button("Clear outfit list", () => widget("outfit_images").value = "[]");
+            if (widget("anchor_manifest")) {
+                const anchorTime = node.addWidget("number", "Edited anchor time (seconds)", 0, () => {},
+                    { min: 0, step: 0.1, precision: 3, serialize: false });
+                const anchorOutfit = node.addWidget("number", "Edited anchor outfit number", 1, () => {},
+                    { min: 1, step: 1, precision: 0, serialize: false });
+                anchorTime.serialize = anchorOutfit.serialize = false;
+                button("Add edited pose/outfit anchor", () => chooseFiles("image/*", false, names => {
+                    const frame = Math.round(anchorTime.value * 24);
+                    const outfit_index = Math.round(anchorOutfit.value);
+                    let anchors = JSON.parse(widget("anchor_manifest").value || "[]");
+                    if (!Array.isArray(anchors)) throw new Error("anchor_manifest must be a JSON array.");
+                    anchors = anchors.filter(a => a.frame !== frame || a.outfit_index !== outfit_index);
+                    anchors.push({ frame, outfit_index, image: names[0] });
+                    anchors.sort((a, b) => a.frame - b.frame || a.outfit_index - b.outfit_index);
+                    widget("anchor_manifest").value = JSON.stringify(anchors, null, 2);
+                }));
+            }
             button("Refresh uploaded files", refresh);
         };
     },

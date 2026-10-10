@@ -9,6 +9,9 @@ description = "Native ComfyUI MiniMax H3 Ref2VA runner for one 16 GB GPU"
 requires-python = ">=3.11"
 dependencies = ["requests>=2.32,<3", "Pillow>=11,<13", "huggingface-hub>=0.34,<2", "psutil>=7,<8"]
 
+[project.optional-dependencies]
+dance-quality = ["numpy>=1.26,<3", "mediapipe>=0.10.21,<2"]
+
 [project.scripts]
 h3 = "h3_pipeline.cli:main"
 

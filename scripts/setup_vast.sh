@@ -143,7 +143,7 @@ echo '[3/6] Installing Python dependencies and SageAttention (first build can ta
 if [[ -s "$H3_ROOT/locks/requirements-freeze.txt" ]]; then
   "$PYTHON" -m pip install -r "$H3_ROOT/locks/requirements-freeze.txt" --extra-index-url https://download.pytorch.org/whl/cu130
 fi
-"$PYTHON" -m pip install -c "$H3_ROOT/locks/torch-constraints.txt" -r "$H3_ROOT/ComfyUI/requirements.txt" -e "$SOURCE_DIR"
+"$PYTHON" -m pip install -c "$H3_ROOT/locks/torch-constraints.txt" -r "$H3_ROOT/ComfyUI/requirements.txt" -e "$SOURCE_DIR[dance-quality]"
 # SageAttention 2.2.0 builds against the pinned Torch/CUDA environment.
 # A runtime-only CUDA image lacks nvcc: select a CUDA 13 devel image instead.
 "$PYTHON" -m pip install ninja==1.11.1.4 packaging

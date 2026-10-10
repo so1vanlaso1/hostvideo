@@ -182,6 +182,7 @@ def dance_graph():
     widgets = ["Choose dance video", KEEP_ORIGINAL, KEEP_ORIGINAL, "[]",
                "A realistic full-body dance with natural motion and consistent appearance.",
                123456789, 0.98, 5.0, "source", DEFAULT_PROFILE, 25, False, 12, "[]", 0.0, 0.0]
+    widgets += [1.0, "auto", "[]", "pose_warn", ""]
     instructions = ("1. Upload/select any dance video.\n"
                     "2. Keep original character/background, or upload/select replacements.\n"
                     "3. Upload any number of outfits in appearance order (one file = one outfit).\n"
@@ -190,12 +191,17 @@ def dance_graph():
                     "\nOutfits share equal time by default. Optional outfit_durations assigns seconds to each outfit, "
                     "covering the full video. Long outfit intervals split into smaller renders. "
                     "Output keeps the source aspect ratio, complete 24 fps timeline and soundtrack (when present). "
-                    "Cuts have context frames trimmed away; pose/identity fidelity still needs visual review. "
+                    "Auto anchors add a first render pass, then constrain the final render with outfit-correct endpoint frames. "
+                    "One-second anchored bridges replace outfit boundaries, preserving the exact source duration. "
+                    "Every section and the final video have synchronized review previews (source left, result right). "
+                    "CPU pose warnings are on by default; setup installs .[dance-quality] and the small detector downloads once. "
+                    "pose_strict blocks failed/inconclusive sections until approved or rerendered. "
+                    "Use anchor_manifest for manually edited source-pose images; automatic anchors still need review. "
                     "Find clips, graphs and reports under output/h3/dance/. "
                     "This is a configurable ComfyUI workflow; the Python/CLI generation pipeline is unchanged.")
-    return {"id": "2e4d1c28-42d1-453a-a01f-ecbb91bbd7f6", "revision": 1,
+    return {"id": "2e4d1c28-42d1-453a-a01f-ecbb91bbd7f6", "revision": 2,
             "last_node_id": 2, "last_link_id": 0,
-            "nodes": [{"id": 1, "type": "H3DanceWorkflow", "pos": [80, 80], "size": [700, 1100],
+            "nodes": [{"id": 1, "type": "H3DanceWorkflow", "pos": [80, 80], "size": [700, 1500],
                        "flags": {}, "order": 0, "mode": 0, "inputs": [],
                        "outputs": [{"name": "assembled_video", "type": "VIDEO", "links": None, "slot_index": 0},
                                    {"name": "output_path", "type": "STRING", "links": None, "slot_index": 1}],

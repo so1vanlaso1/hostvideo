@@ -5,7 +5,7 @@ import shutil
 import tempfile
 import unittest
 
-from h3_pipeline.dance_workflow import dance_canvas, plan_sections, section_references, dance_prompt
+from h3_pipeline.dance_workflow import dance_canvas, plan_sections, section_references, dance_prompt, plan_transitions, assembly_plan
 from h3_pipeline.dance_media import normalize_dance_video, slice_dance_video, assemble_dance_video, extract_frame
 from h3_pipeline.media import executable, run, probe, verify_output
 
@@ -148,6 +148,39 @@ class DanceMediaTests(unittest.TestCase):
             result = slice_dance_video(normalized, reference, 0, s["generation_frames"], pad=True)
             self.assertEqual(int(result["streams"][0]["nb_frames"]), s["generation_frames"])
             self.assertEqual(len(probe(reference)["streams"]), 1)
+
+    def test_bridge_replacement_and_review_preserve_source_timestamps(self):
+        from h3_pipeline.dance_quality import review_section
+        with tempfile.TemporaryDirectory() as folder:
+            work = Path(folder)
+            normalized = work / "normalized.mp4"
+            normalize_dance_video(self.fixture(work), normalized, 128, 96)
+            total = int(probe(normalized)["streams"][0]["nb_frames"])
+            stable = plan_sections(total, ["a", "b", "c"], context_frames=4)
+            bridges = plan_transitions(stable, 1)
+            for s in stable + bridges:
+                slice_dance_video(normalized, work / f"core-{s['index']}.mp4", s["start_frame"], s["keep_frames"])
+            pieces = []
+            for i, p in enumerate(assembly_plan(stable, bridges)):
+                target = work / f"piece-{i}.mp4"
+                slice_dance_video(work / f"core-{p['section_index']}.mp4", target, p["clip_start_frame"], p["frames"])
+                pieces.append(target)
+            result = work / "assembled.mp4"
+            assemble_dance_video(pieces, result, total, normalized)
+            import numpy as np
+            from PIL import Image
+            for bridge in bridges:
+                for frame in (bridge["start_frame"] - 1, bridge["start_frame"], bridge["end_frame"] - 1, bridge["end_frame"]):
+                    extract_frame(normalized, work / "source.png", frame)
+                    extract_frame(result, work / "result.png", frame)
+                    a = np.asarray(Image.open(work / "source.png"), dtype=float)
+                    b = np.asarray(Image.open(work / "result.png"), dtype=float)
+                    self.assertLess(abs(a - b).mean(), 5)
+            review = review_section(normalized, result, work / "review")
+            self.assertEqual(review["status"], "needs_review")
+            info = probe(review["preview"])["streams"][0]
+            self.assertEqual(int(info["nb_frames"]), total)
+            self.assertEqual(info["width"], 256)
 
 
 if __name__ == "__main__":

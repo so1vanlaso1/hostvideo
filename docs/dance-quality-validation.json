@@ -1,0 +1,73 @@
+{
+  "date": "2026-10-11",
+  "tests": {
+    "platform": "WSL Ubuntu, Python 3.14.4, LF-normalized snapshot",
+    "total": 53,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0
+  },
+  "pose_backend": {
+    "platform": "Windows Python 3.12",
+    "mediapipe": "1.1.0",
+    "model_sha256": "59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a"
+  },
+  "archived_render_screening": [
+    {
+      "section": 1,
+      "reference_sha256": "bb94710d7eeb99336d167e286901c7282f644e70591da7a89a47145efb53662c",
+      "generated_sha256": "f106d237fbc5e29f4aedf64c05900cac41c694bcab0b35905a57dc1d17872c34",
+      "motion": {
+        "status": "pass",
+        "comparable_frame_fraction": 1.0,
+        "median_pose_error": 0.059428416422582876,
+        "p90_velocity_error": 0.0517437893139344,
+        "severe_jump_frames": [],
+        "thresholds": {
+          "pose_error": 0.35,
+          "velocity_error": 0.25,
+          "min_coverage": 0.65
+        },
+        "scope": "Motion screening only. Garment flicker, identity and transition quality need visual review."
+      }
+    },
+    {
+      "section": 2,
+      "reference_sha256": "da45fe4f6c0f48d8981fa10700b67e6453ee433f7c31bf62dd2bf7a86da22f0e",
+      "generated_sha256": "c05d03026d22b739f7e50199d3d5734a631f5297d694eb01665310590656a9b7",
+      "motion": {
+        "status": "fail",
+        "comparable_frame_fraction": 1.0,
+        "median_pose_error": 0.40872327164785094,
+        "p90_velocity_error": 0.10026414664540345,
+        "severe_jump_frames": [],
+        "thresholds": {
+          "pose_error": 0.35,
+          "velocity_error": 0.25,
+          "min_coverage": 0.65
+        },
+        "scope": "Motion screening only. Garment flicker, identity and transition quality need visual review."
+      }
+    },
+    {
+      "section": 3,
+      "reference_sha256": "9c00815912087c3a0c964493996dbd119ca0aab879fd9a351bae90c3b903b5ea",
+      "generated_sha256": "14769e742908d5407abb53aa10f3290fd40c22b8538e8bd9b2b7605a5b450664",
+      "motion": {
+        "status": "pass",
+        "comparable_frame_fraction": 1.0,
+        "median_pose_error": 0.07485563683044869,
+        "p90_velocity_error": 0.11601760686754618,
+        "severe_jump_frames": [],
+        "thresholds": {
+          "pose_error": 0.35,
+          "velocity_error": 0.25,
+          "min_coverage": 0.65
+        },
+        "scope": "Motion screening only. Garment flicker, identity and transition quality need visual review."
+      }
+    }
+  ],
+  "new_gpu_renders_performed": false,
+  "native_comfy_contract_run": false
+}

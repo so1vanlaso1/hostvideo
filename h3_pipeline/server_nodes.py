@@ -10,7 +10,7 @@ import folder_paths
 import nodes
 import torch
 from comfy_api.latest import ComfyExtension, io
-from comfy_extras.nodes_minimax_h3 import MiniMaxH3ReferenceToVideo
+from comfy_extras.nodes_minimax_h3 import MiniMaxH3ReferenceToVideo, MiniMaxH3AddGuide
 from comfy_extras.nodes_custom_sampler import SamplerCustomAdvanced, BasicScheduler
 from comfy_extras.nodes_audio import VAEDecodeAudio, LoadAudio
 from comfy_extras.nodes_video import SaveVideo
@@ -144,6 +144,18 @@ class H3ReferenceToVideo(MiniMaxH3ReferenceToVideo):
             if monitor.data["memory_level"]:
                 runtime.memory().offload_encoder(kwargs["clip"])
             return result
+
+
+class H3DanceAddGuide(MiniMaxH3AddGuide):
+    @classmethod
+    def define_schema(cls):
+        return schema_for(MiniMaxH3AddGuide, "H3DanceAddGuide")
+
+    @classmethod
+    def execute(cls, context, **kwargs):
+        # Use the same attention/offloading policy as reference VAE encoding.
+        with runtime.stage(context, "reference_conditioning_and_latents"):
+            return super().execute(**kwargs)
 
 
 class H3Sampler(SamplerCustomAdvanced):
@@ -324,7 +336,7 @@ NODE_CLASS_MAPPINGS = {cls.__name__: cls for cls in (
 
 class H3Extension(ComfyExtension):
     async def get_node_list(self):
-        return [H3ReferenceToVideo, H3Sampler, H3Scheduler, H3AudioDecode, H3SaveVideo]
+        return [H3ReferenceToVideo, H3DanceAddGuide, H3Sampler, H3Scheduler, H3AudioDecode, H3SaveVideo]
 
 
 async def comfy_entrypoint():

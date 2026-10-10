@@ -83,6 +83,15 @@ class NativeContractTests(unittest.TestCase):
         valid, error, outputs, node_errors = asyncio.run(execution.validate_prompt("native-turbo", graph, None))
         self.assertTrue(valid, json.dumps({"error": error, "nodes": node_errors}, indent=2))
 
+    def test_outfit_correct_arbitrary_frame_guides_validate_natively(self):
+        import execution
+        from h3_pipeline.workflow import add_frame_guides
+        graph = build_workflow(prompt="Edit clothing while preserving dance", images=[], video=None, audio=None,
+            include_video_audio=False, width=128, height=96, length=39, seed=1, job_id="native-guides")
+        add_frame_guides(graph, [(12, str(self.root / "edited-opening.png")), (24, str(self.root / "edited-closing.png"))])
+        valid, error, _, errors = asyncio.run(execution.validate_prompt("native-guides", graph, None))
+        self.assertTrue(valid, json.dumps({"error": error, "nodes": errors}))
+
     def test_wide_and_tall_saved_graphs_validate(self):
         import execution
         from h3_pipeline.dance_workflow import dance_canvas

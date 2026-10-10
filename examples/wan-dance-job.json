@@ -1,0 +1,11 @@
+{
+  "wan_repository": "/workspace/Wan2.2",
+  "checkpoint_directory": "/workspace/Wan2.2/Wan2.2-Animate-14B",
+  "python": "/workspace/Wan2.2/venv/bin/python",
+  "reference_video": "assets/dance.mp4",
+  "outfit_character_image": "assets/dancer-in-target-outfit.png",
+  "output_directory": "../.runtime/wan-comparison",
+  "steps": 20,
+  "seed": 123456789,
+  "relighting": false
+}

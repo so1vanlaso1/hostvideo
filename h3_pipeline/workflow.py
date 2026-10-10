@@ -4,6 +4,30 @@ import json
 from .config import ASSETS, DEFAULT_PROFILE, model_files
 
 
+def add_frame_guides(graph, guides):
+    """Apply outfit-correct guides to conditioning, keeping the original AV latent.
+
+    Guides are (generation_frame_index, image_path) pairs. The file loader is
+    gated by the section context so generated anchors cannot be read early.
+    """
+    conditioning = ["136", 0]
+    seen = set()
+    for i, (frame, path) in enumerate(guides):
+        if isinstance(frame, bool) or not isinstance(frame, int) or not 0 <= frame < graph["136"]["inputs"]["length"]:
+            raise ValueError("Guide frame is outside the generation window")
+        if frame in seen:
+            raise ValueError("Conflicting guides at the same frame")
+        seen.add(frame)
+        loader, guide = str(500 + i * 2), str(501 + i * 2)
+        graph[loader] = {"class_type": "H3DanceLoadImage", "inputs": {"image": str(path), "context": ["200", 0]}}
+        graph[guide] = {"class_type": "H3DanceAddGuide", "inputs": {
+            "positive": conditioning, "vae": ["119", 0], "latent": ["136", 1],
+            "image": [loader, 0], "frame_idx": frame, "context": ["201", 0]}}
+        conditioning = [guide, 0]
+    graph["126"]["inputs"]["conditioning"] = conditioning
+    return graph
+
+
 def build_workflow(*, prompt, images, video, audio, include_video_audio, width, height, length,
                    seed, job_id, memory_level=0, ref_image_size="max", profile=DEFAULT_PROFILE,
                    scheduler="simple", steps=25, turbo=False):

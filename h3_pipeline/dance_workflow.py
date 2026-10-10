@@ -6,6 +6,72 @@ from .references import FPS, MAX_FRAMES, MAX_PIXELS, Reference, PromptBuilder
 KEEP_ORIGINAL = "Keep original"
 
 
+def plan_transitions(sections, seconds=1.0):
+    """Separate bridge renders overwrite (never insert) source-timeline frames.
+
+    Clamp each half-window to its adjacent core. This makes bridges disjoint
+    even for very short outfit intervals and keeps their endpoints available in
+    the corresponding stable renders, including at the ends of the source.
+    """
+    if not math.isfinite(seconds) or not 0 <= seconds <= 3:
+        raise ValueError("transition_seconds must be between 0 and 3")
+    if seconds == 0:
+        return []
+    half = max(1, round(seconds * FPS / 2))
+    bridges = []
+    for before, after in zip(sections, sections[1:]):
+        if before["outfit_index"] == after["outfit_index"]:
+            continue
+        left = min(half, max(0, (before["keep_frames"] - 1) // 2))
+        right = min(half, max(0, (after["keep_frames"] - 1) // 2))
+        if not left or not right:
+            raise ValueError("Outfit intervals are too short for a transformation; increase their duration or set transition_seconds=0")
+        start, end = before["end_frame"] - left, after["start_frame"] + right
+        # Both endpoints are REAL source frames, already rendered in the old
+        # and new outfit. Padding is outside the retained bridge.
+        needed = end - start
+        length = max(5, needed) + (5 - max(5, needed) % 17) % 17
+        bridges.append({"index": len(sections) + len(bridges) + 1, "kind": "transition",
+                        "outfit_index": after["outfit_index"], "outfit_image": after["outfit_image"],
+                        "from_outfit_image": before["outfit_image"],
+                        "left_section": before["index"], "right_section": after["index"],
+                        "start_frame": start, "end_frame": end, "keep_frames": needed,
+                        "reference_start_frame": start, "trim_start_frame": 0,
+                        "generation_frames": length, "generation_seconds": length / FPS,
+                        "padding_frames": max(0, start + length - sections[-1]["end_frame"]),
+                        "boundary_frame": before["end_frame"]})
+    return bridges
+
+
+def assembly_plan(sections, transitions):
+    """Partition the timeline; bridge clips replace the stable overlap exactly."""
+    total = sections[-1]["end_frame"]
+    points = {0, total}
+    for s in sections + transitions:
+        points.update((s["start_frame"], s["end_frame"]))
+    pieces = []
+    for start, end in zip(sorted(points), sorted(points)[1:]):
+        selected = next((s for s in transitions if s["start_frame"] <= start and end <= s["end_frame"]), None)
+        if selected is None:
+            selected = next(s for s in sections if s["start_frame"] <= start and end <= s["end_frame"])
+        if pieces and pieces[-1]["section_index"] == selected["index"]:
+            pieces[-1]["end_frame"] = end
+            pieces[-1]["frames"] += end - start
+        else:
+            pieces.append({"section_index": selected["index"], "start_frame": start, "end_frame": end,
+                           "clip_start_frame": start - selected["start_frame"], "frames": end - start})
+    return pieces
+
+
+def guide_frames(section):
+    """Core anchors in generation coordinates, never untrimmed output indices."""
+    start = section["trim_start_frame"]
+    frames = {start, start + section["keep_frames"] - 1}
+    if section.get("kind") == "stable":
+        frames.add(start + (section["keep_frames"] - 1) // 2)
+    return sorted(frames)
+
+
 def dance_canvas(width, height, megapixels):
     if any(isinstance(n, bool) or not isinstance(n, int) or n <= 0 for n in (width, height)):
         raise ValueError("Source dimensions must be positive integers")
@@ -76,7 +142,7 @@ def plan_sections(total_frames, outfits, outfit_durations=(), max_section_second
     return sections
 
 
-def section_references(anchor, character, background, outfit, previous_frame=None):
+def section_references(anchor, character, background, outfit, previous_frame=None, from_outfit=None):
     images = []
     def add(path, role):
         images.append(Reference(f"<Picture {len(images) + 1}>", role, str(path)))
@@ -84,12 +150,14 @@ def section_references(anchor, character, background, outfit, previous_frame=Non
     add(background or anchor, "replacement background scene only" if background else "original background scene only")
     if outfit:
         add(outfit, "clothing design only; ignore the clothing model's identity and background")
+    if from_outfit:
+        add(from_outfit, "opening outfit clothing design only; ignore the clothing model's identity and background")
     if previous_frame:
         add(previous_frame, "appearance continuity from the preceding generated section; ignore its outfit and pose")
     return images
 
 
-def dance_prompt(prompt, images, paired_audio, replace_character, replace_background, has_outfit, reference_video="reference.mp4"):
+def dance_prompt(prompt, images, paired_audio, replace_character, replace_background, has_outfit, reference_video="reference.mp4", transition=None):
     refs = list(images)
     if paired_audio:
         refs.append(Reference("<Audio 1>", "source dance soundtrack paired with <Video 1>", str(reference_video)))
@@ -100,7 +168,16 @@ def dance_prompt(prompt, images, paired_audio, replace_character, replace_backgr
                   if replace_background else "Keep the original room, background objects, lighting and camera framing from <Video 1> and <Picture 2>.")
     clothing = ("Wear the complete outfit from <Picture 3> throughout this section, from first to last frame. Transfer only its garments, colors, cut and details. Ignore the clothing photograph's person and location. Do not mix outfits."
                 if has_outfit else "Keep the original dancer's clothing from <Video 1>, even when replacing the character or background.")
-    text = [f"{r.tag} defines {r.role}." for r in refs]
+    if transition:
+        clothing = ("Begin wearing the complete opening outfit from <Picture 4>. While continuing the source choreography, "
+                    f"transform the garments once into the complete outfit from <Picture 3> between 0.000 and {(transition['keep_frames'] - 1) / FPS:.3f} seconds. "
+                    "Finish in the new outfit and retain it through the remaining context. A continuous fully clothed fashion transformation, "
+                    "no alternating outfits, no repeated transformation, no body or face morph. The anchored endpoint images define the exact poses and outfits.")
+    text = ["subject_definitions:", *[f"{r.tag} defines {r.role}." for r in refs],
+            "summary:\n[video editing + reference generation] Edit <Video 1>. Preserve its original choreography and timing. "
+            "Change only the explicitly selected clothing, character or background.",
+            "retention_analysis:\nPreserve the frame-by-frame dance sequence, foot contacts, body position, movement direction, camera trajectory and shot timing. "
+            "Identity and scene remain preserved unless a replacement is explicitly selected.", "detailed_description:"]
     text += [character, background, clothing,
              "Follow <Video 1> in its exact temporal order: matching dance poses, gestures, footwork, movement direction, speed and camera motion. Start with its opening pose and finish with its final pose. Do not invent a different dance or restart the choreography.",
              "Maintain the same selected character and scene throughout. One continuous shot in this section, coherent hands and limbs, full-body framing, no extra people, labels or clothing-photo backgrounds."]
