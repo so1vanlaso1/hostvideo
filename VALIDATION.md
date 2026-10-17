@@ -1,5 +1,22 @@
 # Local validation
 
+## ARM64 GB10 preparation — 17 October 2026
+
+The CUDA 12.8/13.x baseline was committed and pushed to `cuda12-compatible` at `787be16` before ARM work began. The `arm-gb10` branch adds native Linux aarch64/arm64 setup with CUDA 13, pinned ARM64 PyTorch/torchvision wheels, a native Comfy Kitchen build for visible GPU targets and the existing pinned SageAttention revision's GB10 kernels. CPU architecture, Python ABI and build-helper hashes now participate in extension reuse decisions.
+
+GB10/integrated-memory startup uses estimate-based loading, disabled pinned host buffers and 12 GiB initial headroom. Memory overrides survive setup and detached tmux startup. Preflight reports one container-bounded shared pool, rejects incompatible ARM runtimes and invalid reserve budgets, and retains actual CUDA/quantization/Sage correctness checks before downloading weights. Telemetry identifies shared-memory accounting and tracks minimum system-available memory. Optional MediaPipe CPU pose screening defaults off on ARM.
+
+**76 local tests passed with no skips**, using the existing ffmpeg/ffprobe binaries under `../tmp/tools`. **All 25 native integration tests passed** against pinned ComfyUI with this checkout explicitly on `PYTHONPATH`. New regression coverage includes ARM source-build selection and `121a` target propagation, CUDA 12 rejection on ARM, CPU-only Torch rejection before extension/model work, CPU-architecture lock invalidation with unchanged toolkit/GPU capability, saved memory-policy overrides, shared-pool accounting and serializable pressure telemetry. Shell syntax, Python compilation, dependency consistency and whitespace checks passed. Both Comfy Kitchen patches apply cleanly to the pinned upstream revision. Published Python 3.11 aarch64 CUDA 13 wheels were confirmed for the pinned Torch/torchvision pair, Comfy Kitchen and Comfy Aimdo.
+
+Reproduction (the service tests substitute GPU/build tools; native tests use synthetic media without model inference):
+
+```bash
+FFMPEG=/path/to/ffmpeg FFPROBE=/path/to/ffprobe /path/to/client-venv/bin/python -m unittest discover -s tests
+PYTHONPATH="$PWD" H3_COMFY_PATH=/path/to/pinned/ComfyUI FFMPEG=/path/to/ffmpeg FFPROBE=/path/to/ffprobe /path/to/native-venv/bin/python tests/native_contract.py
+```
+
+No GB10 instance was available, and no deployment was requested. Native ARM64 CUDA compilation, actual checkpoint inference, peak shared-memory fit, runtime comparisons and visual quality remain unverified until target acceptance. Run the staged commands in [the GB10 guide](docs/gb10.md) when the instance is ready; the branch does not claim measured GPU performance.
+
 ## CUDA 12.8+ setup conversion — 17 October 2026
 
 Setup now selects PyTorch 2.11.0/cu128 for CUDA 12.8+ in the 12.x family and retains PyTorch 2.13.0/cu130 for CUDA 13.x. CUDA 12 builds Comfy Kitchen 0.2.37 at pinned revision `be003b7c23c5b01328657955b8bc5d3f073d868e`, patching its Linux cuBLASLt loader to use major 12 and building native GPU targets instead of the newer default family targets. Both paths build pinned SageAttention and retain quantization/attention kernel preflight. Build fingerprints prevent old freeze files or CUDA extensions from being reused across migrations.

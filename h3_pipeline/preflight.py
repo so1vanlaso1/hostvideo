@@ -6,9 +6,10 @@ import subprocess
 
 from .config import DEFAULT_PROFILE, model_files
 from .attention import SAGE_VERSION, SAGE_REVISION, metadata as attention_metadata
+from .hardware import ARM_MACHINES, device_info, is_gb10, runtime_policy
 
 
-def cuda_environment_errors(cuda_version, driver_version):
+def cuda_environment_errors(cuda_version, driver_version, *, machine=None, capability=()):
     """Check the runtime, rather than nvidia-smi's maximum supported CUDA version."""
     if not cuda_version:
         return ["Install a CUDA-enabled PyTorch build for CUDA 12.8 or newer"]
@@ -17,6 +18,8 @@ def cuda_environment_errors(cuda_version, driver_version):
         return [f"PyTorch CUDA {cuda_version} is unsupported; use CUDA 12.8 or newer"]
     if version[0] not in (12, 13):
         return [f"CUDA {cuda_version} needs a supported matching PyTorch stack; setup supports CUDA 12.8+ in the 12.x and 13.x families"]
+    if ((machine or "").lower() in ARM_MACHINES or tuple(capability) == (12, 1)) and version[0] != 13:
+        return ["ARM64/GB10 deployment requires the CUDA 13.x PyTorch stack and toolkit for sm_121 kernels"]
     minimum_driver = 570 if version[0] == 12 else 580
     if int(driver_version.split(".")[0]) < minimum_driver:
         return [f"CUDA {cuda_version} requires a compatible R{minimum_driver}-or-newer host driver"]
@@ -100,7 +103,7 @@ def preflight(root, profile=DEFAULT_PROFILE, kernels=False, require_gpu=True):
         existing = existing.parent
     ram = allocated_ram()
     cpu = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else os.cpu_count()
-    report = {"platform": platform.platform(), "python": platform.python_version(), "root": str(path),
+    report = {"platform": platform.platform(), "machine": platform.machine(), "python": platform.python_version(), "root": str(path),
               "allocated_ram_bytes": ram, "allocated_cpu_cores": cpu, "disk_free_bytes": shutil.disk_usage(existing).free,
               "models_bytes": sum(m["size"] for m in model_files(profile).values()), "profile": profile,
               "warnings": [], "errors": [], "ffmpeg": shutil.which("ffmpeg"), "ffprobe": shutil.which("ffprobe")}
@@ -118,17 +121,30 @@ def preflight(root, profile=DEFAULT_PROFILE, kernels=False, require_gpu=True):
         import torch
         report.update(torch_version=torch.__version__, cuda_version=torch.version.cuda, cuda_available=torch.cuda.is_available())
         if torch.cuda.is_available():
-            report.update(gpu_model=torch.cuda.get_device_name(0), capability=list(torch.cuda.get_device_capability(0)),
-                          total_vram_bytes=torch.cuda.get_device_properties(0).total_memory)
+            report.update(device_info(torch))
             # A real operation catches wheels missing this GPU's architecture.
             (torch.ones((16, 16), device="cuda") @ torch.ones((16, 16), device="cuda")).sum().item()
             driver = subprocess.run(["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"], capture_output=True, text=True, check=True).stdout.strip().splitlines()[0]
             report["driver_version"] = driver
-            report["errors"].extend(cuda_environment_errors(torch.version.cuda, driver))
-            if "5060 Ti" not in report["gpu_model"]:
+            report["errors"].extend(cuda_environment_errors(torch.version.cuda, driver,
+                machine=report["machine"], capability=report["capability"]))
+            report["runtime_policy"] = runtime_policy(report)
+            if is_gb10(report["gpu_model"], report["capability"], report["machine"]):
+                if report["machine"].lower() not in ARM_MACHINES:
+                    report["errors"].append("GB10 requires native Linux ARM64/aarch64 userspace")
+            elif "5060 Ti" not in report["gpu_model"]:
                 report["warnings"].append("GPU differs from the planned RTX 5060 Ti; record its benchmarks separately")
             if report["total_vram_bytes"] < 15 * 1024**3:
-                report["errors"].append("This deployment targets the 16 GB GPU variant")
+                report["errors"].append("This deployment requires at least 15 GiB CUDA-visible memory")
+            budget = report["total_vram_bytes"]
+            if report["shared_memory"]:
+                budget = min(budget, ram)
+                report["shared_memory_pool_bytes"] = budget
+                report["memory_accounting"] = "CPU and CUDA share one physical pool; RAM and VRAM capacities are not additive"
+                if budget < 96 * 1024**3:
+                    report["warnings"].append("GB10 H3 deployment prefers at least 96 GiB allocated shared memory; measure model and activation fit")
+            if report["runtime_policy"]["reserve_vram_gib"] * 1024**3 >= budget:
+                report["errors"].append("H3_RESERVE_VRAM must be smaller than the allocated memory pool")
             if kernels and not report["errors"]:
                 report["kernels"] = kernel_smoke(profile)
                 report["attention"] = attention_smoke()

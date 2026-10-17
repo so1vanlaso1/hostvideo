@@ -1,4 +1,4 @@
-# MiniMax H3 Ref2VA — Vast.ai / RTX 5060 Ti 16 GB
+# MiniMax H3 Ref2VA — Vast.ai / RTX 5060 Ti and ARM64 GB10
 
 This implementation generates reference-driven clips with native audio using Comfy-Org checkpoints and CPU offloading. Quality defaults supersede the original speed settings in `guide.txt`: native 1344×768 output, 25 base sampling steps, Turbo disabled, INT8 Qwen3-VL encoder, and `max` image references. It provides ComfyUI browser workflows and a Python/CLI client. **The 15-second fit and reference quality must be measured on your Vast GPU.** Local tests do not establish visual quality.
 
@@ -6,10 +6,12 @@ This implementation generates reference-driven clips with native audio using Com
 
 Choose a **Linux x86-64 Ubuntu/Debian SSH template with a CUDA 12.8 or newer development toolkit (`nvcc`)**, an **RTX 5060 Ti 16 GB**, a compatible host driver (**R570+ for CUDA 12.x, R580+ for CUDA 13.x**, with support for your GPU and toolkit), **64 GB allocated RAM preferred**, eight CPU cores and **150 GB or more disk**. Avoid templates that automatically start another ComfyUI server. The NVIDIA driver belongs to the Vast host. The CUDA version shown by `nvidia-smi` is the driver's maximum supported version; use `nvcc --version` to check the installed development toolkit.
 
+For **GB10 / ASUS GX10 / DGX Spark**, choose a **native Linux ARM64 (`aarch64`) Ubuntu/Debian CUDA 13.x development template**, an **R580+ host driver**, the full **128 GB shared memory allocation**, and at least **150 GB disk** (the proposed 422 GB allocation is sufficient for the default model set and working files). Do not use an x86 image or copy an x86 virtual environment. The CPU and GPU share the same physical memory pool: the advertised RAM and VRAM capacities are not additive. See [GB10 setup and tuning](docs/gb10.md).
+
 SSH into your instance, clone this repository and run:
 
 ```bash
-git clone https://github.com/so1vanlaso1/hostvideo.git
+git clone --branch arm-gb10 https://github.com/so1vanlaso1/hostvideo.git
 cd hostvideo
 bash setup.sh
 ```
@@ -38,7 +40,9 @@ bash setup.sh --help
 
 These pairs follow [PyTorch's published builds](https://pytorch.org/get-started/previous-versions/). Newer toolkit minors in the same major family can build extensions against these wheels; PyTorch may print a minor-version mismatch warning. Other major families require a new matching PyTorch stack and are rejected explicitly. Set `CUDA_HOME=/usr/local/cuda-12.8` (or your toolkit path) before setup to select among multiple installations.
 
-For CUDA 12.x, setup builds pinned **Comfy Kitchen 0.2.37** from source for the visible GPU architectures. Its upstream wheels require CUDA 13; the source build applies [a small compatibility patch](scripts/patches/comfy-kitchen-cu12.patch) to load cuBLASLt 12 and limit compilation parallelism. CUDA 13.x uses its pinned prebuilt wheel. SageAttention is built against the selected PyTorch/toolkit in both cases. Set `MAX_JOBS=2 EXT_PARALLEL=1` before setup to reduce build memory use if needed.
+For CUDA 12.x, setup builds pinned **Comfy Kitchen 0.2.37** from source for the visible GPU architectures. Its upstream wheels require CUDA 13; the source build applies [a small compatibility patch](scripts/patches/comfy-kitchen-cu12.patch) to load cuBLASLt 12 and limit compilation parallelism. On **ARM64/CUDA 13**, it also builds Comfy Kitchen from source, targeting the visible GPU (`121a` on GB10), retaining the CUDA 13 cuBLASLt loader. CUDA 13.x on x86-64 uses its pinned prebuilt wheel. SageAttention is built against the selected PyTorch/toolkit in all cases; the pinned revision includes `sm_121` dispatch. Set `MAX_JOBS=2 EXT_PARALLEL=1` before setup to reduce build memory use if needed.
+
+ARM64 uses the same pinned **PyTorch 2.13.0/cu130 and torchvision 0.28.0**, with native Python 3.11 ARM64 wheels. Setup verifies a real CUDA matrix operation before extension builds. Build fingerprints include CPU architecture, Python ABI, GPU capabilities, toolkit and build-helper/patch hashes, preventing reuse of x86 or incompatible CUDA extensions. Optional MediaPipe CPU pose screening is skipped by default on ARM64; set `H3_INSTALL_POSE=1` to request it. Generation, outfit transitions and visual review do not require it.
 
 Setup supplies Python through uv when needed, saves the resolved dependency lock and runs CUDA/quantization/attention checks **before downloading weights**. No host driver or system Python is replaced. To migrate an existing installation, stop ComfyUI, select the desired development toolkit and rerun `bash setup.sh`. Setup rebuilds CUDA extensions when the Torch/toolkit/GPU architecture changes and resolves a fresh dependency lock; completed model downloads are reused. The build fingerprint is recorded in `locks/cuda-build.json` only after kernel checks pass. CUDA 12.8 GPU execution must still be verified on your instance; local setup tests use substitutes for GPU tools.
 
@@ -80,7 +84,9 @@ Keep that SSH connection open and visit **http://localhost:8188**. If you chose 
 
 The previously configured instance uses supervisor and its existing portal URL; see [INSTANCE.md](INSTANCE.md) for that instance's commands. Use supervisor to stop it before running setup there.
 
-The server listens internally on **127.0.0.1:8188**, uses dynamic VRAM, one GiB reserved VRAM, FP16/CPU intermediates, SageAttention and disabled node-result caching. Setup builds SageAttention 2.2.0 from pinned upstream revision `d1a57a546c3d395b1ffcbeecc66d81db76f3b4b5`; this version was unavailable on PyPI when checked. Its [upstream build requirements](https://github.com/thu-ml/SageAttention#installation) include a CUDA development toolkit. Setup verifies the imported source path, package revision and representative FP16/BF16 CUDA attention against FP32 SDPA before startup. The editable package must resolve to `h3_pipeline/__init__.py` inside your cloned checkout.
+The server listens internally on **127.0.0.1:8188**, uses FP16/CPU intermediates, SageAttention and disabled node-result caching. Discrete GPUs retain dynamic VRAM and one GiB reserved VRAM. **GB10/shared-memory GPUs default to estimate-based loading, disabled pinned host buffers and 12 GiB reserved headroom** for CPU buffers and other software. This is an initial policy to benchmark, not a guarantee of memory fit; models can still be unloaded as needed. `H3_MEMORY_MODE=auto|static|dynamic` and `H3_RESERVE_VRAM=16` override these settings and are saved by setup. When starting through the helpers, explicit environment overrides take precedence over saved values and reach the detached tmux server. High-VRAM/GPU-only loading is not forced.
+
+Setup builds SageAttention 2.2.0 from pinned upstream revision `d1a57a546c3d395b1ffcbeecc66d81db76f3b4b5`; this version was unavailable on PyPI when checked. Its [upstream build requirements](https://github.com/thu-ml/SageAttention#installation) include a CUDA development toolkit. Setup verifies the imported source path, package revision and representative FP16/BF16 CUDA attention against FP32 SDPA before startup. The editable package must resolve to `h3_pipeline/__init__.py` inside your cloned checkout.
 
 H3 adapters enforce SageAttention for CUDA diffusion and video-VAE attention, and PyTorch SDPA for Qwen text/vision conditioning and the FP32 audio VAE. Checkpoint attention metadata and the video VAE's direct Comfy Kitchen attention branch cannot override this policy. Quantization/ConvRot kernels and native VAE chunking remain enabled. CPU/unsupported-dtype calls use PyTorch; native Sage mask/precision/error fallbacks are retained and counted. Each section's `server.attention` telemetry records the policy, installed Sage revision, and successful backend calls by component; a selected policy alone is not proof of GPU dispatch. GPU performance and quality still require the acceptance checks.
 
@@ -193,6 +199,8 @@ The first three stages omit references to establish basic execution and memory f
 Acceptance: the requested 362-frame output plays with generated synchronized audio; character face/hair/body remain consistent; garments retain colors, shape and major details; motion resembles the dance reference; hands and limbs remain coherent. Record defects and pass/fail judgments in `ACCEPTANCE.md`; software completion alone does not establish visual quality.
 
 Reports include models/revisions, source and output dimensions, frame count/duration, Qwen encode, reference VAE encode, sampling, video/audio decode and encoding times, native model load/free activity, peak CUDA allocated/reserved memory, and sampled process RAM. Stage timings include nested native operations and must not be summed as independent durations. CPU memory is sampled, so brief peaks may be missed. Total client wall time includes preprocessing, uploads and all retries.
+
+On GB10, preflight also reports the shared-memory pool bounded by the container allocation and selected runtime policy. Inference telemetry identifies shared memory and samples the minimum system-available memory. CPU RSS and CUDA peaks must not be added to estimate physical usage on a shared-memory GPU.
 
 Compatibility checkpoints require explicit selection and their own measurements:
 

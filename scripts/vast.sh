@@ -72,6 +72,10 @@ PY
   {
     printf '#!/usr/bin/env bash\nset -euo pipefail\n'
     printf 'export H3_ROOT=%q H3_PROFILE=%q H3_PORT=%q\n' "$H3_ROOT" "$H3_PROFILE" "$H3_PORT"
+    printf 'export H3_MEMORY_MODE=%q\n' "$H3_MEMORY_MODE"
+    if [[ -n "${H3_RESERVE_VRAM:-}" ]]; then
+      printf 'export H3_RESERVE_VRAM=%q\n' "$H3_RESERVE_VRAM"
+    fi
     printf 'exec bash %q >> %q 2>&1\n' "$SOURCE_DIR/scripts/start_comfy.sh" "$LOG"
   } > "$LAUNCHER"
   # Close the service lock in the tmux child so future commands can acquire it.

@@ -22,6 +22,12 @@ class CudaCompatibilityTests(unittest.TestCase):
     def test_new_major_requires_matching_stack(self):
         self.assertIn("matching PyTorch stack", cuda_environment_errors("14.0", "600.1")[0])
 
+    def test_gb10_and_arm64_require_cuda13(self):
+        for extra in ({"machine": "aarch64"}, {"machine": "arm64"}, {"capability": (12, 1)}):
+            with self.subTest(extra=extra):
+                self.assertIn("CUDA 13", cuda_environment_errors("12.8", "580.65", **extra)[0])
+                self.assertEqual(cuda_environment_errors("13.0", "580.65", **extra), [])
+
 
 if __name__ == "__main__":
     unittest.main()

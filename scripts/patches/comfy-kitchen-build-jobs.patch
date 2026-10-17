@@ -1,0 +1,12 @@
+diff --git a/setup.py b/setup.py
+--- a/setup.py
++++ b/setup.py
+@@ -246,7 +246,7 @@
+ 
+         build_args = ["--config", config]
+ 
+-        max_jobs = os.cpu_count() or 1
++        max_jobs = int(os.environ.get("MAX_JOBS", "4"))
+         build_args.extend(["--parallel", str(max_jobs)])
+ 
+         # Run CMake configure

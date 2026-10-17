@@ -9,6 +9,7 @@ import time
 
 from .config import COMFY_REVISION, MODEL_REVISION, write_json
 from .attention import attention_policy, metadata as attention_metadata
+from .hardware import device_info, runtime_policy
 
 
 class PerformanceMonitor:
@@ -32,8 +33,13 @@ class PerformanceMonitor:
         if torch.cuda.is_available():
             device = torch.cuda.current_device()
             torch.cuda.reset_peak_memory_stats(device)
-            self.data.update(gpu_model=torch.cuda.get_device_name(device),
-                             gpu_total_vram_bytes=torch.cuda.get_device_properties(device).total_memory)
+            hardware = device_info(torch)
+            self.data.update(hardware)
+            self.data["gpu_total_vram_bytes"] = hardware["total_vram_bytes"]
+            self.data["runtime_policy"] = runtime_policy(hardware)
+            if hardware["shared_memory"]:
+                self.data["memory_accounting"] = "Shared CPU/CUDA pool: RSS and CUDA peaks are not independent physical-memory measurements; do not add them"
+                self.data["system_available_memory_min_bytes"] = psutil.virtual_memory().available
         self.thread = threading.Thread(target=self._poll, daemon=True, name="h3-metrics")
         self.thread.start()
 
@@ -53,6 +59,9 @@ class PerformanceMonitor:
             if self.torch.cuda.is_available():
                 self.data["gpu_peak_allocated_bytes"] = max(self.data["gpu_peak_allocated_bytes"], self.torch.cuda.max_memory_allocated())
                 self.data["gpu_peak_reserved_bytes"] = max(self.data["gpu_peak_reserved_bytes"], self.torch.cuda.max_memory_reserved())
+            if self.data.get("shared_memory"):
+                self.data["system_available_memory_min_bytes"] = min(
+                    self.data["system_available_memory_min_bytes"], self.psutil.virtual_memory().available)
 
     @contextmanager
     def stage(self, name):

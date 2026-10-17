@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "minimax-h3-pipeline"
 version = "0.1.0"
-description = "Native ComfyUI MiniMax H3 Ref2VA runner for one 16 GB GPU"
+description = "Native ComfyUI MiniMax H3 Ref2VA runner for NVIDIA x86-64 and ARM64 GB10 GPUs"
 requires-python = ">=3.11"
 dependencies = ["requests>=2.32,<3", "Pillow>=11,<13", "huggingface-hub>=0.34,<2", "psutil>=7,<8"]
 

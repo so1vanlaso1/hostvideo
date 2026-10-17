@@ -39,7 +39,7 @@ def venv(path):
     (directory / "activate").write_text("")
 
 if name == "uname":
-    print("Linux" if args == ["-s"] else "x86_64")
+    print(os.environ.get("MOCK_SYSTEM", "Linux") if args == ["-s"] else os.environ.get("MOCK_MACHINE", "x86_64"))
 elif name == "nvidia-smi":
     print(os.environ.get("MOCK_DRIVER", "580.10"))
 elif name == "nvcc":
@@ -98,6 +98,9 @@ elif name in ("python", "python3", "python3.11"):
             print("requests==2.32.5")
         if any("sageattention @" in arg for arg in args):
             (work / "sage-built").touch()
+        if any("kitchen-build." in arg for arg in args):
+            (work / "kitchen-env.json").write_text(json.dumps({key: os.environ.get(key) for key in
+                ("COMFY_CUDA_ARCHS", "MAX_JOBS", "COMFY_KITCHEN_BUILD_NO_HIP")}))
     elif args[:2] == ["-m", "h3_pipeline"]:
         if "preflight" in args and os.environ.get("MOCK_PREFLIGHT_FAIL"):
             sys.exit("Mock CUDA preflight failed")
@@ -118,7 +121,12 @@ elif name in ("python", "python3", "python3.11"):
         code = sys.stdin.read()
         if '"compatibility_patch"' in code:
             print(json.dumps({"toolkit": args[1], "cuda_home": args[2],
-                              "gpu": os.environ.get("MOCK_GPU", "12.0")}))
+                              "gpu": os.environ.get("MOCK_GPU", "12.0"), "machine": args[6],
+                              "arch_override": os.environ.get("TORCH_CUDA_ARCH_LIST", ""),
+                              "kitchen_arch_override": os.environ.get("COMFY_CUDA_ARCHS", "")}))
+        elif "Verified CUDA wheel:" in code:
+            if os.environ.get("MOCK_CPU_TORCH"):
+                sys.exit("Installed PyTorch cannot access CUDA")
         elif "from h3_pipeline.attention import metadata" in code:
             sys.exit(0 if (work / "sage-built").exists() else 1)
         elif "shutil.disk_usage" in code and os.environ.get("MOCK_LOW_DISK"):
@@ -132,7 +140,7 @@ elif name in ("python", "python3", "python3.11"):
     elif args[:1] == ["-c"] and ("sys.version_info" in args[1] or "import pathlib, sys, h3_pipeline" in args[1]):
         pass
     elif args[:1] == ["-c"] and "torch.cuda.get_device_capability" in args[1]:
-        print("120a")
+        print(os.environ.get("MOCK_GPU", "12.0").replace(".", "") + "a")
     else:
         sys.exit(subprocess.run([sys.executable, *args]).returncode)
 '''
@@ -161,6 +169,8 @@ class VastScriptTests(unittest.TestCase):
                     "H3_PORT": str(self.port), "H3_PROFILE": "int8-encoder", "H3_START_TIMEOUT": "10"}
         self.env.pop("MOCK_PREFLIGHT_FAIL", None)
         self.env.pop("CUDA_HOME", None)
+        for key in ("H3_MEMORY_MODE", "H3_RESERVE_VRAM", "H3_INSTALL_POSE", "COMFY_CUDA_ARCHS", "TORCH_CUDA_ARCH_LIST"):
+            self.env.pop(key, None)
 
     def tearDown(self):
         if (self.root / "locks").exists():
@@ -276,6 +286,74 @@ class VastScriptTests(unittest.TestCase):
         calls = self.calls()[before:]
         self.assertTrue(any("comfy-kitchen==0.2.37" in call and "--force-reinstall" in call for call in calls))
         self.assertTrue(any(any("sageattention @" in arg for arg in call) for call in calls))
+
+    def test_arm64_cuda13_builds_native_kitchen_without_cuda12_patch(self):
+        env = {**self.env, "MOCK_MACHINE": "aarch64", "MOCK_GPU": "12.1"}
+        result = self.run_script("setup.sh", "--skip-download", env=env)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        calls = self.calls()
+        torch_install = next(call for call in calls if "torch==2.13.0" in call)
+        self.assertIn("--only-binary=:all:", torch_install)
+        self.assertIn("https://download.pytorch.org/whl/cu130", torch_install)
+        self.assertTrue(any("apply" in call and any("build-jobs.patch" in arg for arg in call) for call in calls))
+        self.assertFalse(any("apply" in call and any("cu12.patch" in arg for arg in call) for call in calls))
+        self.assertFalse(any("--force-reinstall" in call and "comfy-kitchen==0.2.37" in call for call in calls))
+        package_install = next(call for call in calls if "-e" in call)
+        self.assertEqual(package_install[-1], str(self.repo))
+        build_env = json.loads((self.work / "kitchen-env.json").read_text())
+        self.assertEqual(build_env["COMFY_CUDA_ARCHS"], "121a")
+        self.assertEqual(build_env["COMFY_KITCHEN_BUILD_NO_HIP"], "1")
+        before = len(calls)
+        result = self.run_script("setup.sh", "--skip-download", env=env)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse(any("submodule" in call for call in self.calls()[before:]))
+
+    def test_arm64_rejects_cuda12_and_unsupported_cpu_before_install(self):
+        for extra, message in (({"MOCK_MACHINE": "aarch64", "MOCK_CUDA": "12.8"}, "ARM64/GB10"),
+                               ({"MOCK_MACHINE": "ppc64le"}, "Unsupported CPU architecture"),
+                               ({"MOCK_SYSTEM": "Darwin", "MOCK_MACHINE": "arm64"}, "Linux")):
+            with self.subTest(extra=extra):
+                result = self.run_script("setup.sh", env={**self.env, **extra})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stderr)
+        self.assertFalse(any("pip" in call or "clone" in call for call in self.calls()))
+
+    def test_cpu_torch_fails_before_extension_builds_or_model_downloads(self):
+        result = self.run_script("setup.sh", env={**self.env, "MOCK_CPU_TORCH": "1"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("cannot access CUDA", result.stdout + result.stderr)
+        self.assertFalse(any("submodule" in call or "download-models" in call or
+                             any("sageattention @" in arg for arg in call) for call in self.calls()))
+        self.assertFalse((self.repo / ".h3-vast.env").exists())
+
+    def test_switching_cpu_architecture_invalidates_extension_lock(self):
+        self.setup_ok("--skip-download")
+        before = len(self.calls())
+        # Keep toolkit and capability unchanged so only the CPU architecture
+        # invalidates the previous extension lock.
+        env = {**self.env, "MOCK_MACHINE": "arm64", "H3_INSTALL_POSE": "1"}
+        result = self.run_script("setup.sh", "--skip-download", env=env)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        calls = self.calls()[before:]
+        self.assertFalse(any("install" in call and any("requirements-freeze.txt" in arg for arg in call) for call in calls))
+        self.assertTrue(any(any("sageattention @" in arg for arg in call) for call in calls))
+        self.assertTrue(any("submodule" in call for call in calls))
+        self.assertTrue(any("-e" in call and call[-1].endswith("[dance-quality]") for call in calls))
+
+    def test_memory_policy_is_saved_and_forwarded_to_detached_server(self):
+        env = {**self.env, "H3_MEMORY_MODE": "static", "H3_RESERVE_VRAM": "16"}
+        result = self.run_script("setup.sh", "--no-start", env=env)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = self.run_script("scripts/vast.sh", "start")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        launcher = (self.root / "locks/start-comfy.sh").read_text()
+        self.assertIn("H3_MEMORY_MODE=static", launcher)
+        self.assertIn("H3_RESERVE_VRAM=16", launcher)
+        result = self.run_script("scripts/vast.sh", "restart", env={**self.env, "H3_MEMORY_MODE": "dynamic", "H3_RESERVE_VRAM": "8"})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        launcher = (self.root / "locks/start-comfy.sh").read_text()
+        self.assertIn("H3_MEMORY_MODE=dynamic", launcher)
+        self.assertIn("H3_RESERVE_VRAM=8", launcher)
 
     def test_newer_toolkits_and_old_driver_boundaries(self):
         for version in ("12.9", "13.1", "13.2"):

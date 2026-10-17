@@ -14,7 +14,7 @@ usage() {
 Usage: bash setup.sh [options]
 
 Install dependencies, verify GPU kernels, download models and start ComfyUI.
-Run on a Linux x86-64 Vast GPU template with CUDA 12.8+ development tools.
+Run on Linux x86-64 (CUDA 12.8+/13.x) or ARM64 GB10 (CUDA 13.x), with nvcc.
 
   --root PATH         Runtime/model storage (auto: mounted /data, /workspace, .runtime)
   --profile NAME      int8-encoder (default), primary, fp8, fp8-int8-encoder
@@ -25,6 +25,8 @@ Run on a Linux x86-64 Vast GPU template with CUDA 12.8+ development tools.
   -h, --help          Show this help
 
 H3_ROOT, H3_PROFILE and H3_PORT also work. Successful setup saves these settings.
+H3_MEMORY_MODE=auto|static|dynamic and H3_RESERVE_VRAM=GiB tune memory policy.
+H3_INSTALL_POSE=1 installs optional CPU pose tools (default: off on ARM64).
 Later: bash scripts/vast.sh start|stop|restart|status|logs
 HELP
 }
@@ -45,7 +47,15 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
-[[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]] || { echo 'Run this setup on the Linux x86-64 Vast instance.' >&2; exit 1; }
+MACHINE="$(uname -m)"
+[[ "$(uname -s)" == Linux ]] || { echo 'Run this setup on the Linux Vast instance.' >&2; exit 1; }
+case "$MACHINE" in
+  x86_64) ARM64=false ;;
+  aarch64|arm64) ARM64=true ;;
+  *) echo "Unsupported CPU architecture: $MACHINE. Use x86_64 or aarch64/ARM64." >&2; exit 1 ;;
+esac
+H3_INSTALL_POSE="${H3_INSTALL_POSE:-$([[ "$ARM64" == true ]] && echo 0 || echo 1)}"
+[[ "$H3_INSTALL_POSE" == 0 || "$H3_INSTALL_POSE" == 1 ]] || { echo 'H3_INSTALL_POSE must be 0 or 1.' >&2; exit 2; }
 command -v nvidia-smi >/dev/null || { echo 'NVIDIA GPU access is missing; choose a GPU template/host.' >&2; exit 1; }
 DRIVER="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -n 1)"
 # Some development templates do not add the toolkit to PATH.
@@ -62,6 +72,10 @@ NVCC_INFO="$(nvcc --version)"
 CUDA_MAJOR="${BASH_REMATCH[1]}"
 CUDA_MINOR="${BASH_REMATCH[2]}"
 CUDA_VERSION="$CUDA_MAJOR.$CUDA_MINOR"
+if [[ "$ARM64" == true && "$CUDA_MAJOR" -ne 13 ]]; then
+  echo 'ARM64/GB10 requires a CUDA 13.x development template for native sm_121 kernels.' >&2
+  exit 1
+fi
 if [[ "$CUDA_MAJOR" -eq 12 && "$CUDA_MINOR" -ge 8 ]]; then
   TORCH_VERSION=2.11.0; VISION_VERSION=0.26.0; CUDA_WHEEL=cu128; MIN_DRIVER=570
 elif [[ "$CUDA_MAJOR" -eq 13 ]]; then
@@ -164,18 +178,39 @@ printf 'torch==%s\ntorchvision==%s\ncomfy-kitchen==%s\n' "$TORCH_VERSION" "$VISI
 echo '[3/6] Installing Python dependencies and SageAttention (first build can take several minutes).'
 "$PYTHON" -m pip install --upgrade pip wheel setuptools
 echo "CUDA toolkit $CUDA_VERSION | PyTorch $TORCH_VERSION ($CUDA_WHEEL) | driver $DRIVER"
-"$PYTHON" -m pip install "torch==$TORCH_VERSION" "torchvision==$VISION_VERSION" --index-url "$TORCH_INDEX"
+"$PYTHON" -m pip install --only-binary=:all: "torch==$TORCH_VERSION" "torchvision==$VISION_VERSION" --index-url "$TORCH_INDEX"
+# Fail before extension builds if pip selected a CPU wheel or a wheel that cannot
+# execute on this GPU. This also rejects CUDA 12 on GB10 and emulated userspace.
+"$PYTHON" - "$SOURCE_DIR" "$MACHINE" "$DRIVER" <<'PY'
+import sys, torch
+sys.path.insert(0, sys.argv[1])
+from h3_pipeline.hardware import device_info, is_gb10
+from h3_pipeline.preflight import cuda_environment_errors
+if not torch.cuda.is_available():
+    raise SystemExit("Installed PyTorch cannot access CUDA; select a native CUDA-enabled template/wheel")
+hardware = device_info(torch)
+errors = cuda_environment_errors(torch.version.cuda, sys.argv[3], machine=sys.argv[2], capability=hardware["capability"])
+if is_gb10(hardware["gpu_model"], hardware["capability"], sys.argv[2]) and sys.argv[2] not in {"aarch64", "arm64"}:
+    errors.append("GB10 requires native ARM64/aarch64 userspace")
+if errors:
+    raise SystemExit("; ".join(errors))
+(torch.ones((16, 16), device="cuda") @ torch.ones((16, 16), device="cuda")).sum().item()
+print("Verified CUDA wheel:", torch.__version__, hardware)
+PY
 # A source revision alone cannot identify a reusable CUDA extension. Include its
 # ABI, toolkit, architectures and our cuBLAS compatibility patch in the build key.
-"$PYTHON" - "$CUDA_VERSION" "$CUDA_HOME" "$KITCHEN_REVISION" "$SAGE_REVISION" "$SOURCE_DIR/scripts/patches/comfy-kitchen-cu12.patch" > "$H3_ROOT/locks/cuda-build.pending.json" <<'PY'
-import hashlib, json, os, sys, torch
+"$PYTHON" - "$CUDA_VERSION" "$CUDA_HOME" "$KITCHEN_REVISION" "$SAGE_REVISION" "$SOURCE_DIR" "$MACHINE" > "$H3_ROOT/locks/cuda-build.pending.json" <<'PY'
+import hashlib, json, os, platform, sys, sysconfig, torch
 from pathlib import Path
 print(json.dumps({"torch": torch.__version__, "torch_cuda": torch.version.cuda,
                   "toolkit": sys.argv[1], "cuda_home": sys.argv[2],
                   "kitchen_revision": sys.argv[3], "sage_revision": sys.argv[4],
-                  "compatibility_patch": hashlib.sha256(Path(sys.argv[5]).read_bytes()).hexdigest(),
+                  "machine": sys.argv[6], "python": platform.python_version(), "soabi": sysconfig.get_config_var("SOABI"),
+                  "compatibility_patch": {str(p.relative_to(sys.argv[5])): hashlib.sha256(p.read_bytes()).hexdigest()
+                      for p in [Path(sys.argv[5]) / "scripts/build_kitchen.sh", *sorted((Path(sys.argv[5]) / "scripts/patches").glob("*.patch"))]},
                   "gpu_capabilities": [torch.cuda.get_device_capability(i) for i in range(torch.cuda.device_count())],
-                  "arch_override": os.environ.get("TORCH_CUDA_ARCH_LIST", "")}, sort_keys=True))
+                  "arch_override": os.environ.get("TORCH_CUDA_ARCH_LIST", ""),
+                  "kitchen_arch_override": os.environ.get("COMFY_CUDA_ARCHS", "")}, sort_keys=True))
 PY
 REUSE_CUDA=false
 if cmp -s "$H3_ROOT/locks/cuda-build.pending.json" "$H3_ROOT/locks/cuda-build.json"; then
@@ -189,13 +224,19 @@ fi
 # An interrupted migration must never leave the previous environment marked as
 # reusable: it may already contain extensions from the unsuccessful new build.
 rm -f "$H3_ROOT/locks/cuda-build.json"
-"$PYTHON" -m pip install -c "$H3_ROOT/locks/torch-constraints.txt" -r "$H3_ROOT/ComfyUI/requirements.txt" -e "$SOURCE_DIR[dance-quality]"
+PACKAGE="$SOURCE_DIR"
+if [[ "$H3_INSTALL_POSE" == 1 ]]; then
+  PACKAGE="$SOURCE_DIR[dance-quality]"
+else
+  echo 'Optional MediaPipe CPU pose screening skipped (H3_INSTALL_POSE=0); generation and visual reviews remain available.'
+fi
+"$PYTHON" -m pip install -c "$H3_ROOT/locks/torch-constraints.txt" -r "$H3_ROOT/ComfyUI/requirements.txt" -e "$PACKAGE"
 # SageAttention 2.2.0 builds against the pinned Torch/CUDA environment.
 # A runtime-only CUDA image lacks nvcc: select a CUDA 12.8+ devel image instead.
 "$PYTHON" -m pip install ninja==1.11.1.4 packaging
-if [[ "$CUDA_MAJOR" -eq 12 ]]; then
+if [[ "$CUDA_MAJOR" -eq 12 || "$ARM64" == true ]]; then
   if [[ "$REUSE_CUDA" != true ]]; then
-    bash "$SOURCE_DIR/scripts/build_kitchen.sh" "$PYTHON" "$H3_ROOT" "$KITCHEN_REVISION"
+    bash "$SOURCE_DIR/scripts/build_kitchen.sh" "$PYTHON" "$H3_ROOT" "$KITCHEN_REVISION" "$CUDA_MAJOR"
   fi
 elif [[ "$REUSE_CUDA" != true ]]; then
   "$PYTHON" -m pip install --no-deps --force-reinstall "comfy-kitchen==$KITCHEN_VERSION"
@@ -242,6 +283,10 @@ fi
   printf '# Generated by setup.sh. Environment overrides take precedence in helper scripts.\n'
   printf 'export H3_ROOT=%q\nexport H3_PROFILE=%q\nexport H3_PORT=%q\n' "$H3_ROOT" "$H3_PROFILE" "$H3_PORT"
   printf 'export H3_SERVER_URL=%q\n' "http://127.0.0.1:$H3_PORT"
+  printf 'export H3_MEMORY_MODE=%q\n' "$H3_MEMORY_MODE"
+  if [[ -n "${H3_RESERVE_VRAM:-}" ]]; then
+    printf 'export H3_RESERVE_VRAM=%q\n' "$H3_RESERVE_VRAM"
+  fi
 } > "$SOURCE_DIR/.h3-vast.env.tmp"
 mv "$SOURCE_DIR/.h3-vast.env.tmp" "$SOURCE_DIR/.h3-vast.env"
 flock -u 8
