@@ -116,7 +116,10 @@ elif name in ("python", "python3", "python3.11"):
             http.server.HTTPServer(("127.0.0.1", port), Handler).serve_forever()
     elif args and args[0] == "-":
         code = sys.stdin.read()
-        if "from h3_pipeline.attention import metadata" in code:
+        if '"compatibility_patch"' in code:
+            print(json.dumps({"toolkit": args[1], "cuda_home": args[2],
+                              "gpu": os.environ.get("MOCK_GPU", "12.0")}))
+        elif "from h3_pipeline.attention import metadata" in code:
             sys.exit(0 if (work / "sage-built").exists() else 1)
         elif "shutil.disk_usage" in code and os.environ.get("MOCK_LOW_DISK"):
             sys.exit("Need at least 75 GiB free for remaining models")
@@ -128,6 +131,8 @@ elif name in ("python", "python3", "python3.11"):
         sys.exit(1)
     elif args[:1] == ["-c"] and ("sys.version_info" in args[1] or "import pathlib, sys, h3_pipeline" in args[1]):
         pass
+    elif args[:1] == ["-c"] and "torch.cuda.get_device_capability" in args[1]:
+        print("120a")
     else:
         sys.exit(subprocess.run([sys.executable, *args]).returncode)
 '''
@@ -155,6 +160,7 @@ class VastScriptTests(unittest.TestCase):
                     "MOCK_WORK": str(self.work), "H3_ROOT": str(self.root),
                     "H3_PORT": str(self.port), "H3_PROFILE": "int8-encoder", "H3_START_TIMEOUT": "10"}
         self.env.pop("MOCK_PREFLIGHT_FAIL", None)
+        self.env.pop("CUDA_HOME", None)
 
     def tearDown(self):
         if (self.root / "locks").exists():
@@ -228,7 +234,7 @@ class VastScriptTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_wrong_toolkit_and_insufficient_disk_fail_before_installing(self):
-        for extra, message in (({"MOCK_CUDA": "12.8"}, "CUDA 13"),
+        for extra, message in (({"MOCK_CUDA": "12.7"}, "CUDA 12.8"),
                                ({"MOCK_DRIVER": "570.10"}, "R580"),
                                ({"MOCK_LOW_DISK": "1"}, "GiB free")):
             with self.subTest(extra=extra):
@@ -236,6 +242,61 @@ class VastScriptTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(message, result.stdout + result.stderr)
         self.assertFalse(any("pip" in call or "clone" in call for call in self.calls()))
+
+    def test_cuda_128_builds_kitchen_and_uses_matching_torch(self):
+        env = {**self.env, "MOCK_CUDA": "12.8", "MOCK_DRIVER": "570.124"}
+        result = self.run_script("setup.sh", "--skip-download", env=env)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        calls = self.calls()
+        torch_install = next(call for call in calls if "torch==2.11.0" in call)
+        self.assertIn("torchvision==0.26.0", torch_install)
+        self.assertIn("https://download.pytorch.org/whl/cu128", torch_install)
+        self.assertTrue(any("submodule" in call for call in calls))
+        self.assertTrue(any("apply" in call and any("cu12.patch" in arg for arg in call) for call in calls))
+        freeze = next(call for call in calls if "freeze" in call)
+        self.assertIn("comfy-kitchen", freeze)
+        # A matching rerun should reuse both source builds and replay its lock.
+        result = self.run_script("setup.sh", "--skip-download", env=env)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(sum("submodule" in call for call in self.calls()), 1)
+        self.assertEqual(sum(any("sageattention @" in arg for arg in call) for call in self.calls()), 1)
+
+    def test_changing_cuda_rebuilds_extensions_without_replaying_old_lock(self):
+        self.setup_ok("--skip-download")
+        before = len(self.calls())
+        env = {**self.env, "MOCK_CUDA": "12.8", "MOCK_DRIVER": "570.124"}
+        result = self.run_script("setup.sh", "--skip-download", env=env)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        calls = self.calls()[before:]
+        self.assertTrue(any(any("sageattention @" in arg for arg in call) for call in calls))
+        self.assertFalse(any("install" in call and any("requirements-freeze.txt" in arg for arg in call) for call in calls))
+        self.assertIn("changed", result.stdout)
+        before = len(self.calls())
+        self.setup_ok("--skip-download")
+        calls = self.calls()[before:]
+        self.assertTrue(any("comfy-kitchen==0.2.37" in call and "--force-reinstall" in call for call in calls))
+        self.assertTrue(any(any("sageattention @" in arg for arg in call) for call in calls))
+
+    def test_newer_toolkits_and_old_driver_boundaries(self):
+        for version in ("12.9", "13.1", "13.2"):
+            with self.subTest(version=version):
+                result = self.run_script("setup.sh", "--skip-download", env={**self.env, "MOCK_CUDA": version})
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        before = len(self.calls())
+        result = self.run_script("setup.sh", env={**self.env, "MOCK_CUDA": "12.8", "MOCK_DRIVER": "565.99"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("R570", result.stderr)
+        self.assertFalse(any("pip" in call for call in self.calls()[before:]))
+
+    def test_failed_migration_invalidates_previous_build_marker(self):
+        self.setup_ok("--skip-download")
+        env = {**self.env, "MOCK_CUDA": "12.8", "MOCK_DRIVER": "570.124", "MOCK_PREFLIGHT_FAIL": "1"}
+        result = self.run_script("setup.sh", "--skip-download", env=env)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((self.root / "locks/cuda-build.json").exists())
+        before = len(self.calls())
+        self.setup_ok("--skip-download")
+        self.assertTrue(any(any("sageattention @" in arg for arg in call) for call in self.calls()[before:]))
 
     def test_occupied_port_does_not_start_another_server(self):
         self.setup_ok("--no-start")

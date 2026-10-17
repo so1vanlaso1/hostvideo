@@ -1,0 +1,38 @@
+diff --git a/comfy_kitchen/backends/cuda/cublaslt_runtime.h b/comfy_kitchen/backends/cuda/cublaslt_runtime.h
+--- a/comfy_kitchen/backends/cuda/cublaslt_runtime.h
++++ b/comfy_kitchen/backends/cuda/cublaslt_runtime.h
+@@ -149,10 +149,10 @@
+             return;
+         }
+ #else
+-        // Linux: cuBLAS 13.x (CUDA 13+)
++        // Linux: match the CUDA 12 headers used for this source build.
+         const char* lib_names[] = {
+-            "libcublasLt.so.13",
+-            "libcublasLt.so",       // Fallback (may be 13.x)
++            "libcublasLt.so.12",
++            // Do not load a different major ABI from an unversioned symlink.
+             nullptr
+         };
+         
+@@ -162,7 +162,7 @@
+         }
+         
+         if (!handle_) {
+-            error_message_ = std::string("cuBLASLt 13.x library not found (requires CUDA 13+): ") + dlerror();
++            error_message_ = std::string("cuBLASLt 12.x library not found: ") + dlerror();
+             return;
+         }
+ #endif
+diff --git a/setup.py b/setup.py
+--- a/setup.py
++++ b/setup.py
+@@ -246,7 +246,7 @@
+ 
+         build_args = ["--config", config]
+ 
+-        max_jobs = os.cpu_count() or 1
++        max_jobs = int(os.environ.get("MAX_JOBS", "4"))
+         build_args.extend(["--parallel", str(max_jobs)])
+ 
+         # Run CMake configure

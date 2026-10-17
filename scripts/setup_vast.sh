@@ -4,6 +4,9 @@ umask 077
 
 SOURCE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 COMFY_REVISION=e9027f2b30f37bb3052714eb08fcf479542f4fc0
+KITCHEN_VERSION=0.2.37
+KITCHEN_REVISION=be003b7c23c5b01328657955b8bc5d3f073d868e
+SAGE_REVISION=d1a57a546c3d395b1ffcbeecc66d81db76f3b4b5
 DOWNLOAD=true
 START=true
 usage() {
@@ -11,7 +14,7 @@ usage() {
 Usage: bash setup.sh [options]
 
 Install dependencies, verify GPU kernels, download models and start ComfyUI.
-Run on a Linux x86-64 Vast GPU template with CUDA 13 development tools.
+Run on a Linux x86-64 Vast GPU template with CUDA 12.8+ development tools.
 
   --root PATH         Runtime/model storage (auto: mounted /data, /workspace, .runtime)
   --profile NAME      int8-encoder (default), primary, fp8, fp8-int8-encoder
@@ -45,13 +48,32 @@ done
 [[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]] || { echo 'Run this setup on the Linux x86-64 Vast instance.' >&2; exit 1; }
 command -v nvidia-smi >/dev/null || { echo 'NVIDIA GPU access is missing; choose a GPU template/host.' >&2; exit 1; }
 DRIVER="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -n 1)"
-[[ "${DRIVER%%.*}" -ge 580 ]] || { echo 'Choose a host with a compatible R580-or-newer driver for CUDA 13.0.' >&2; exit 1; }
 # Some development templates do not add the toolkit to PATH.
+if [[ -n "${CUDA_HOME:-}" ]]; then
+  [[ -x "$CUDA_HOME/bin/nvcc" ]] || { echo 'CUDA_HOME must point to a development toolkit containing bin/nvcc.' >&2; exit 1; }
+  export PATH="$CUDA_HOME/bin:$PATH"
+fi
 if ! command -v nvcc >/dev/null && [[ -x /usr/local/cuda/bin/nvcc ]]; then
   export PATH="/usr/local/cuda/bin:$PATH"
 fi
-command -v nvcc >/dev/null || { echo 'Choose a CUDA 13.0 development template: nvcc is missing.' >&2; exit 1; }
-nvcc --version | grep -q 'release 13\.' || { echo 'Use the CUDA 13 development toolkit to match the pinned PyTorch wheel.' >&2; exit 1; }
+command -v nvcc >/dev/null || { echo 'Choose a CUDA 12.8+ development template: nvcc is missing.' >&2; exit 1; }
+NVCC_INFO="$(nvcc --version)"
+[[ "$NVCC_INFO" =~ release[[:space:]]+([0-9]+)\.([0-9]+) ]] || { echo 'Cannot determine the CUDA toolkit version from nvcc.' >&2; exit 1; }
+CUDA_MAJOR="${BASH_REMATCH[1]}"
+CUDA_MINOR="${BASH_REMATCH[2]}"
+CUDA_VERSION="$CUDA_MAJOR.$CUDA_MINOR"
+if [[ "$CUDA_MAJOR" -eq 12 && "$CUDA_MINOR" -ge 8 ]]; then
+  TORCH_VERSION=2.11.0; VISION_VERSION=0.26.0; CUDA_WHEEL=cu128; MIN_DRIVER=570
+elif [[ "$CUDA_MAJOR" -eq 13 ]]; then
+  TORCH_VERSION=2.13.0; VISION_VERSION=0.28.0; CUDA_WHEEL=cu130; MIN_DRIVER=580
+else
+  echo "CUDA $CUDA_VERSION is unsupported: use CUDA 12.8+ in the 12.x or 13.x family; other major versions need matching PyTorch builds." >&2
+  exit 1
+fi
+[[ "${DRIVER%%.*}" -ge "$MIN_DRIVER" ]] || { echo "CUDA $CUDA_VERSION requires a compatible R$MIN_DRIVER-or-newer host driver." >&2; exit 1; }
+# Both extension builders must use the nvcc selected above, including symlinks.
+export CUDA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v nvcc)")")")"
+TORCH_INDEX="https://download.pytorch.org/whl/$CUDA_WHEEL"
 
 # Install basic tools automatically on Ubuntu/Debian Vast containers.
 MISSING=()
@@ -135,21 +157,51 @@ if [[ ! -x "$H3_ROOT/venv/bin/python" ]]; then
   fi
 fi
 PYTHON="$H3_ROOT/venv/bin/python"
+# Native builders invoke cmake/ninja by name, including pip-installed binaries.
+export PATH="$H3_ROOT/venv/bin:$PATH"
 "$PYTHON" -c 'import sys; assert sys.version_info[:2] == (3,11), "Use a fresh Python 3.11 venv"'
-printf 'torch==2.13.0\ntorchvision==0.28.0\n' > "$H3_ROOT/locks/torch-constraints.txt"
+printf 'torch==%s\ntorchvision==%s\ncomfy-kitchen==%s\n' "$TORCH_VERSION" "$VISION_VERSION" "$KITCHEN_VERSION" > "$H3_ROOT/locks/torch-constraints.txt"
 echo '[3/6] Installing Python dependencies and SageAttention (first build can take several minutes).'
 "$PYTHON" -m pip install --upgrade pip wheel setuptools
-"$PYTHON" -m pip install torch==2.13.0 torchvision==0.28.0 --index-url https://download.pytorch.org/whl/cu130
-if [[ -s "$H3_ROOT/locks/requirements-freeze.txt" ]]; then
-  "$PYTHON" -m pip install -r "$H3_ROOT/locks/requirements-freeze.txt" --extra-index-url https://download.pytorch.org/whl/cu130
+echo "CUDA toolkit $CUDA_VERSION | PyTorch $TORCH_VERSION ($CUDA_WHEEL) | driver $DRIVER"
+"$PYTHON" -m pip install "torch==$TORCH_VERSION" "torchvision==$VISION_VERSION" --index-url "$TORCH_INDEX"
+# A source revision alone cannot identify a reusable CUDA extension. Include its
+# ABI, toolkit, architectures and our cuBLAS compatibility patch in the build key.
+"$PYTHON" - "$CUDA_VERSION" "$CUDA_HOME" "$KITCHEN_REVISION" "$SAGE_REVISION" "$SOURCE_DIR/scripts/patches/comfy-kitchen-cu12.patch" > "$H3_ROOT/locks/cuda-build.pending.json" <<'PY'
+import hashlib, json, os, sys, torch
+from pathlib import Path
+print(json.dumps({"torch": torch.__version__, "torch_cuda": torch.version.cuda,
+                  "toolkit": sys.argv[1], "cuda_home": sys.argv[2],
+                  "kitchen_revision": sys.argv[3], "sage_revision": sys.argv[4],
+                  "compatibility_patch": hashlib.sha256(Path(sys.argv[5]).read_bytes()).hexdigest(),
+                  "gpu_capabilities": [torch.cuda.get_device_capability(i) for i in range(torch.cuda.device_count())],
+                  "arch_override": os.environ.get("TORCH_CUDA_ARCH_LIST", "")}, sort_keys=True))
+PY
+REUSE_CUDA=false
+if cmp -s "$H3_ROOT/locks/cuda-build.pending.json" "$H3_ROOT/locks/cuda-build.json"; then
+  REUSE_CUDA=true
 fi
+if [[ "$REUSE_CUDA" == true && -s "$H3_ROOT/locks/requirements-freeze.txt" ]]; then
+  "$PYTHON" -m pip install -c "$H3_ROOT/locks/torch-constraints.txt" -r "$H3_ROOT/locks/requirements-freeze.txt" --extra-index-url "$TORCH_INDEX"
+elif [[ -s "$H3_ROOT/locks/requirements-freeze.txt" ]]; then
+  echo 'CUDA build environment changed; resolving dependencies again instead of replaying the previous lock.'
+fi
+# An interrupted migration must never leave the previous environment marked as
+# reusable: it may already contain extensions from the unsuccessful new build.
+rm -f "$H3_ROOT/locks/cuda-build.json"
 "$PYTHON" -m pip install -c "$H3_ROOT/locks/torch-constraints.txt" -r "$H3_ROOT/ComfyUI/requirements.txt" -e "$SOURCE_DIR[dance-quality]"
 # SageAttention 2.2.0 builds against the pinned Torch/CUDA environment.
-# A runtime-only CUDA image lacks nvcc: select a CUDA 13 devel image instead.
+# A runtime-only CUDA image lacks nvcc: select a CUDA 12.8+ devel image instead.
 "$PYTHON" -m pip install ninja==1.11.1.4 packaging
-SAGE_REVISION=d1a57a546c3d395b1ffcbeecc66d81db76f3b4b5
+if [[ "$CUDA_MAJOR" -eq 12 ]]; then
+  if [[ "$REUSE_CUDA" != true ]]; then
+    bash "$SOURCE_DIR/scripts/build_kitchen.sh" "$PYTHON" "$H3_ROOT" "$KITCHEN_REVISION"
+  fi
+elif [[ "$REUSE_CUDA" != true ]]; then
+  "$PYTHON" -m pip install --no-deps --force-reinstall "comfy-kitchen==$KITCHEN_VERSION"
+fi
 # Reuse a matching source build on reruns. Kernel preflight still runs every time.
-if ! "$PYTHON" - "$SAGE_REVISION" <<'PY'
+if [[ "$REUSE_CUDA" != true ]] || ! "$PYTHON" - "$SAGE_REVISION" <<'PY'
 import sys
 from h3_pipeline.attention import metadata
 actual = metadata()
@@ -158,7 +210,7 @@ PY
 then
   MAX_JOBS="${MAX_JOBS:-4}" EXT_PARALLEL="${EXT_PARALLEL:-2}" \
   "$PYTHON" -m pip install -c "$H3_ROOT/locks/torch-constraints.txt" \
-  "sageattention @ git+https://github.com/thu-ml/SageAttention.git@$SAGE_REVISION" --no-build-isolation --no-deps --force-reinstall
+  "sageattention @ git+https://github.com/thu-ml/SageAttention.git@$SAGE_REVISION" --no-build-isolation --no-deps --no-cache-dir --force-reinstall
 fi
 "$PYTHON" -m pip check
 "$PYTHON" -c 'import pathlib, sys, h3_pipeline; actual = pathlib.Path(h3_pipeline.__file__).resolve(); expected = pathlib.Path(sys.argv[1]).resolve() / "h3_pipeline/__init__.py"; assert actual == expected, f"Wrong source checkout: {actual}"; print(f"Verified source: {actual}")' "$SOURCE_DIR"
@@ -175,7 +227,8 @@ echo '[4/6] Verifying CUDA kernels and exporting browser workflows.'
 "$PYTHON" -m h3_pipeline --root "$H3_ROOT" preflight --profile "$PROFILE" --kernels --output "$H3_ROOT/locks/preflight.json"
 # Source and the CUDA extension are installed separately above. In particular,
 # Sage must never be rebuilt by pip's default isolated freeze replay.
-"$PYTHON" -m pip freeze --exclude-editable --exclude sageattention > "$H3_ROOT/locks/requirements-freeze.txt"
+"$PYTHON" -m pip freeze --exclude-editable --exclude sageattention --exclude comfy-kitchen > "$H3_ROOT/locks/requirements-freeze.txt"
+mv "$H3_ROOT/locks/cuda-build.pending.json" "$H3_ROOT/locks/cuda-build.json"
 "$PYTHON" --version > "$H3_ROOT/locks/python-version.txt"
 "$PYTHON" -m h3_pipeline export-workflows --directory "$H3_ROOT/user/default/workflows"
 if [[ "$DOWNLOAD" == true ]]; then

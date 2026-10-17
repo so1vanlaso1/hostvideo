@@ -8,6 +8,21 @@ from .config import DEFAULT_PROFILE, model_files
 from .attention import SAGE_VERSION, SAGE_REVISION, metadata as attention_metadata
 
 
+def cuda_environment_errors(cuda_version, driver_version):
+    """Check the runtime, rather than nvidia-smi's maximum supported CUDA version."""
+    if not cuda_version:
+        return ["Install a CUDA-enabled PyTorch build for CUDA 12.8 or newer"]
+    version = tuple(int(part) for part in cuda_version.split(".")[:2])
+    if version < (12, 8):
+        return [f"PyTorch CUDA {cuda_version} is unsupported; use CUDA 12.8 or newer"]
+    if version[0] not in (12, 13):
+        return [f"CUDA {cuda_version} needs a supported matching PyTorch stack; setup supports CUDA 12.8+ in the 12.x and 13.x families"]
+    minimum_driver = 570 if version[0] == 12 else 580
+    if int(driver_version.split(".")[0]) < minimum_driver:
+        return [f"CUDA {cuda_version} requires a compatible R{minimum_driver}-or-newer host driver"]
+    return []
+
+
 def allocated_ram():
     import psutil
     limits = [psutil.virtual_memory().total]
@@ -109,10 +124,7 @@ def preflight(root, profile=DEFAULT_PROFILE, kernels=False, require_gpu=True):
             (torch.ones((16, 16), device="cuda") @ torch.ones((16, 16), device="cuda")).sum().item()
             driver = subprocess.run(["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"], capture_output=True, text=True, check=True).stdout.strip().splitlines()[0]
             report["driver_version"] = driver
-            if int(driver.split(".")[0]) < 580:
-                report["errors"].append("CUDA 13.0 requires an R580-or-newer compatible host driver")
-            if not torch.version.cuda or int(torch.version.cuda.split(".")[0]) < 13:
-                report["errors"].append("Use the pinned CUDA 13.0 PyTorch environment before ConvRot benchmarking")
+            report["errors"].extend(cuda_environment_errors(torch.version.cuda, driver))
             if "5060 Ti" not in report["gpu_model"]:
                 report["warnings"].append("GPU differs from the planned RTX 5060 Ti; record its benchmarks separately")
             if report["total_vram_bytes"] < 15 * 1024**3:

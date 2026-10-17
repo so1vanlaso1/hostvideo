@@ -1,4 +1,10 @@
-# Local validation — 4 October 2026
+# Local validation
+
+## CUDA 12.8+ setup conversion — 17 October 2026
+
+Setup now selects PyTorch 2.11.0/cu128 for CUDA 12.8+ in the 12.x family and retains PyTorch 2.13.0/cu130 for CUDA 13.x. CUDA 12 builds Comfy Kitchen 0.2.37 at pinned revision `be003b7c23c5b01328657955b8bc5d3f073d868e`, patching its Linux cuBLASLt loader to use major 12 and building native GPU targets instead of the newer default family targets. Both paths build pinned SageAttention and retain quantization/attention kernel preflight. Build fingerprints prevent old freeze files or CUDA extensions from being reused across migrations.
+
+**55 tests passed; seven media tests skipped because ffmpeg is unavailable.** Local checks cover toolkit and driver boundaries, selection of matching Torch wheels, successful reruns, migrations in both directions and interrupted migrations. Shell syntax, Python compilation and whitespace checks passed. The compatibility patch applies cleanly to the pinned upstream source. These checks do not compile CUDA or execute GPU kernels on this macOS machine; run `bash setup.sh --skip-download` on the target Linux GPU to perform those checks before model downloads.
 
 ## Audit remediation — 4 October 2026
 

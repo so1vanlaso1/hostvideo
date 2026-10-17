@@ -4,7 +4,7 @@ This implementation generates reference-driven clips with native audio using Com
 
 ## 1. Clone and run one script on Vast
 
-Choose a **Linux x86-64 Ubuntu/Debian SSH template with the CUDA 13.0 development toolkit (`nvcc`)**, an **RTX 5060 Ti 16 GB**, an **R580-or-newer host driver**, **64 GB allocated RAM preferred**, eight CPU cores and **150 GB or more disk**. Avoid templates that automatically start another ComfyUI server. The NVIDIA driver belongs to the Vast host.
+Choose a **Linux x86-64 Ubuntu/Debian SSH template with a CUDA 12.8 or newer development toolkit (`nvcc`)**, an **RTX 5060 Ti 16 GB**, a compatible host driver (**R570+ for CUDA 12.x, R580+ for CUDA 13.x**, with support for your GPU and toolkit), **64 GB allocated RAM preferred**, eight CPU cores and **150 GB or more disk**. Avoid templates that automatically start another ComfyUI server. The NVIDIA driver belongs to the Vast host. The CUDA version shown by `nvidia-smi` is the driver's maximum supported version; use `nvcc --version` to check the installed development toolkit.
 
 SSH into your instance, clone this repository and run:
 
@@ -29,7 +29,18 @@ bash setup.sh --skip-download  # Install only; skip downloads and startup
 bash setup.sh --help
 ```
 
-`H3_ROOT`, `H3_PROFILE` and `H3_PORT` environment overrides still work. `bash scripts/setup_vast.sh --download-models` remains supported; downloads and startup are now enabled by default. Setup retains the pinned ComfyUI/model revisions and Python **3.11**, PyTorch **2.13.0 / CUDA 13.0**, torchvision **0.28.0** and SageAttention **2.2.0**. It supplies Python through uv when needed, saves the resolved dependency lock and runs CUDA/quantization/attention checks **before downloading weights**. No host driver or system Python is replaced.
+`H3_ROOT`, `H3_PROFILE` and `H3_PORT` environment overrides still work. `bash scripts/setup_vast.sh --download-models` remains supported; downloads and startup are now enabled by default. Setup retains the pinned ComfyUI/model revisions, Python **3.11** and SageAttention **2.2.0**, and selects the PyTorch stack from the installed toolkit:
+
+| Installed development toolkit | PyTorch | torchvision | PyTorch CUDA wheel |
+|---|---|---|---|
+| CUDA 12.8 and newer 12.x | 2.11.0 | 0.26.0 | cu128 |
+| CUDA 13.x | 2.13.0 | 0.28.0 | cu130 |
+
+These pairs follow [PyTorch's published builds](https://pytorch.org/get-started/previous-versions/). Newer toolkit minors in the same major family can build extensions against these wheels; PyTorch may print a minor-version mismatch warning. Other major families require a new matching PyTorch stack and are rejected explicitly. Set `CUDA_HOME=/usr/local/cuda-12.8` (or your toolkit path) before setup to select among multiple installations.
+
+For CUDA 12.x, setup builds pinned **Comfy Kitchen 0.2.37** from source for the visible GPU architectures. Its upstream wheels require CUDA 13; the source build applies [a small compatibility patch](scripts/patches/comfy-kitchen-cu12.patch) to load cuBLASLt 12 and limit compilation parallelism. CUDA 13.x uses its pinned prebuilt wheel. SageAttention is built against the selected PyTorch/toolkit in both cases. Set `MAX_JOBS=2 EXT_PARALLEL=1` before setup to reduce build memory use if needed.
+
+Setup supplies Python through uv when needed, saves the resolved dependency lock and runs CUDA/quantization/attention checks **before downloading weights**. No host driver or system Python is replaced. To migrate an existing installation, stop ComfyUI, select the desired development toolkit and rerun `bash setup.sh`. Setup rebuilds CUDA extensions when the Torch/toolkit/GPU architecture changes and resolves a fresh dependency lock; completed model downloads are reused. The build fingerprint is recorded in `locks/cuda-build.json` only after kernel checks pass. CUDA 12.8 GPU execution must still be verified on your instance; local setup tests use substitutes for GPU tools.
 
 The default download contains exactly five checkpoints, approximately **49.8 GiB total**:
 
