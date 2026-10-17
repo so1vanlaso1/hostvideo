@@ -113,8 +113,8 @@ def preflight(root, profile=DEFAULT_PROFILE, kernels=False, require_gpu=True):
                 report["errors"].append("CUDA 13.0 requires an R580-or-newer compatible host driver")
             if not torch.version.cuda or int(torch.version.cuda.split(".")[0]) < 13:
                 report["errors"].append("Use the pinned CUDA 13.0 PyTorch environment before ConvRot benchmarking")
-            if "5060 Ti" not in report["gpu_model"]:
-                report["warnings"].append("GPU differs from the planned RTX 5060 Ti; record its benchmarks separately")
+            if not any(model in report["gpu_model"] for model in ("5060 Ti", "RTX 5090")):
+                report["warnings"].append("GPU differs from the validated RTX 5060 Ti / planned RTX 5090; benchmark this GPU separately")
             if report["total_vram_bytes"] < 15 * 1024**3:
                 report["errors"].append("This deployment targets the 16 GB GPU variant")
             if kernels and not report["errors"]:

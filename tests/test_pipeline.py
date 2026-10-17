@@ -107,6 +107,20 @@ class WorkflowTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "four steps"):
             self.graph(turbo=True, steps=25)
 
+    def test_rtx5090_fast_browser_preset_is_opt_in(self):
+        fast = json.loads((ASSETS / "workflows/ref2va_rtx5090_fast_5s.json").read_text())
+        nodes = {n["id"]: n for n in fast["nodes"]}
+        self.assertEqual(nodes[124]["widgets_values_named"]["steps"], 4)
+        self.assertEqual(nodes[124]["widgets_values_named"]["scheduler"], "beta")
+        self.assertEqual(nodes[146]["widgets_values_named"]["value"], True)
+        self.assertIn("ref2v_turbo_4step", nodes[145]["widgets_values_named"]["lora_name"])
+        self.assertIn("nvfp4_awq", nodes[128]["widgets_values_named"]["clip_name"])
+        self.assertIn("nvfp4_awq", nodes[201]["widgets_values_named"]["encoder"])
+        quality = json.loads((ASSETS / "workflows/ref2va_quality_5s_098mp.json").read_text())
+        quality_nodes = {n["id"]: n for n in quality["nodes"]}
+        self.assertEqual(quality_nodes[124]["widgets_values_named"]["steps"], 25)
+        self.assertFalse(quality_nodes[146]["widgets_values_named"]["value"])
+
     def test_profiles_are_explicit(self):
         for profile in ("primary", "fp8", "int8-encoder", "fp8-int8-encoder"):
             graph = self.graph(profile=profile)
