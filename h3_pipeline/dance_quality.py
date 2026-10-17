@@ -144,7 +144,7 @@ def review_section(source, generated, folder, *, pose_model=None, mode="preview"
          "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", "-movflags", "+faststart", str(preview)])
     result = {"status": "needs_review", "preview": str(preview), "layout": "source left; generated right",
               "generated_sha256": sha256(generated), "source_sha256": sha256(source),
-              "visual_review_required": ["garment flicker", "identity", "hands and feet", "transition continuity"]}
+              "visual_review_required": ["garment flicker", "identity", "facial expression and head movement timing", "hands and feet", "transition continuity"]}
     if mode.startswith("pose"):
         result["motion"] = compare_poses(extract_poses(source, pose_model), extract_poses(generated, pose_model))
         result["pose_model_sha256"] = sha256(pose_model)
@@ -169,7 +169,7 @@ def write_review_index(report, folder):
                     f'<td>{escape(status)}</td><td><a href="section-{index}/review.mp4">Compare</a> · '
                     f'<a href="section-{index}/quality.json">Scores</a></td></tr>')
     html = '<!doctype html><meta charset="utf-8"><title>Dance review</title><style>body{font:16px system-ui;max-width:1100px;margin:40px auto;padding:16px}video{width:100%}td,th{padding:12px;border-bottom:1px solid #ccc;text-align:left}</style>'
-    html += f'<h1>Dance review</h1><p>{escape(report["job_id"])}</p><p>Source left, generated result right. Check choreography, clothing stability, face, hands, feet and outfit changes.</p>'
+    html += f'<h1>Dance review</h1><p>{escape(report["job_id"])}</p><p>Source left, generated result right. Check choreography, clothing stability, facial identity, expression timing, blinking, mouth and head movement, hands, feet and outfit changes.</p>'
     html += '<video controls src="review.mp4"></video><p><a href="generated.mp4">Generated video</a> · <a href="report.json">Report</a></p>'
     html += '<table><thead><tr><th>Section</th><th>Type</th><th>Source time</th><th>Motion screen</th><th>Review</th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table>'
     path = folder / "review.html"

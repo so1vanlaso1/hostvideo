@@ -1,0 +1,99 @@
+{
+  "id": "b84f75bf-f35c-4ecb-a6cd-097994d12be1",
+  "revision": 2,
+  "last_node_id": 2,
+  "last_link_id": 0,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "H3SceneDanceSingleOutfit",
+      "pos": [
+        80,
+        80
+      ],
+      "size": [
+        700,
+        1500
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "assembled_video",
+          "type": "VIDEO",
+          "links": null,
+          "slot_index": 0
+        },
+        {
+          "name": "output_path",
+          "type": "STRING",
+          "links": null,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "H3SceneDanceSingleOutfit"
+      },
+      "widgets_values": [
+        "Choose character and scene image",
+        "Choose dance video",
+        "Choose outfit image",
+        "The photographed character dances in the same photographed scene, wearing the supplied outfit. Keep the photograph's facial identity while matching the dance video's expressions, blinking, gaze, mouth movement and head motion at the same moments.",
+        123456789,
+        0.98,
+        5.0,
+        "source",
+        "int8-encoder",
+        25,
+        false,
+        12,
+        0.0,
+        0.0,
+        "auto",
+        "[]",
+        "preview",
+        ""
+      ],
+      "title": "Photo + Dance + One Outfit"
+    },
+    {
+      "id": 2,
+      "type": "Note",
+      "pos": [
+        840,
+        80
+      ],
+      "size": [
+        490,
+        620
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "1. Upload ONE reference picture: character + scene + background.\n2. Upload the dance video: body choreography, facial expressions and timing.\n3. Upload one clothing image: this outfit stays on for the entire dance.\n4. Queue once. The final video appears here and in output/h3/dance/.\n\nThe same reference picture supplies facial identity and scene in every section. The dance video supplies expressions, blinking, gaze, mouth movement and head motion at their original times. Preserve the character's identity while allowing the face to move; the photo's expression is not held fixed. The output aspect ratio comes from that picture. The dance reference is fitted without cropping or stretching; its dancer's identity, room, clothing and camera movements are excluded by the prompt. Clothes photos supply only garments. Use a full-body reference with room to dance.\n\nduration_seconds=0 uses the full video; choose a short excerpt for your first test. Source audio is retained when present. Auto anchors render and refine each section. Preview quality mode needs no pose detector. Compare review.mp4 before judging dance accuracy, facial identity, expression timing, garments, background and joins. Facial transfer is prompt-guided and needs visual review; pose scores do not verify expressions. These are generative references, not a pixel-locked background or guaranteed pose tracking."
+      ]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.75,
+      "offset": [
+        0,
+        0
+      ]
+    },
+    "h3_pipeline": {
+      "instructions": "1. Upload ONE reference picture: character + scene + background.\n2. Upload the dance video: body choreography, facial expressions and timing.\n3. Upload one clothing image: this outfit stays on for the entire dance.\n4. Queue once. The final video appears here and in output/h3/dance/.\n\nThe same reference picture supplies facial identity and scene in every section. The dance video supplies expressions, blinking, gaze, mouth movement and head motion at their original times. Preserve the character's identity while allowing the face to move; the photo's expression is not held fixed. The output aspect ratio comes from that picture. The dance reference is fitted without cropping or stretching; its dancer's identity, room, clothing and camera movements are excluded by the prompt. Clothes photos supply only garments. Use a full-body reference with room to dance.\n\nduration_seconds=0 uses the full video; choose a short excerpt for your first test. Source audio is retained when present. Auto anchors render and refine each section. Preview quality mode needs no pose detector. Compare review.mp4 before judging dance accuracy, facial identity, expression timing, garments, background and joins. Facial transfer is prompt-guided and needs visual review; pose scores do not verify expressions. These are generative references, not a pixel-locked background or guaranteed pose tracking."
+    }
+  },
+  "version": 0.4
+}

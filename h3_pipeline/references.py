@@ -51,6 +51,19 @@ class Reference:
         return asdict(self)
 
 
+def facial_motion_prompt(identity_reference):
+    """Separate static facial identity from the source video's performance."""
+    return (f"Use {identity_reference} for facial identity, facial proportions, skin tone and hair throughout the shot. "
+            "Transfer the visible facial performance from <Video 1> at the corresponding moments: "
+            "eye blinks, gaze changes, eyebrow movements, smiles, mouth opening and lip movements, "
+            "and head turns and tilts, synchronized with the source body movement. "
+            "Preserve the selected character's facial identity as their expression changes; "
+            "do not import a different person's facial features. "
+            "The character photograph and generated continuity images must not freeze the facial expression or head pose. "
+            "Follow the visible mouth movement in the video rather than inventing speech or lip sync from the music. "
+            "When the source face is hidden or unclear, maintain natural temporal continuity without inventing exaggerated expressions.")
+
+
 class ReferenceManager:
     @staticmethod
     def images(character_images=(), clothing_images=(), additional_reference_images=()):
@@ -78,7 +91,7 @@ class ReferenceManager:
             if paired_audio:
                 refs.append(Reference("<Audio 1>", "soundtrack, rhythm and audio atmosphere paired with <Video 1>", str(video)))
                 audio_index += 1
-            refs.append(Reference("<Video 1>", "choreography, body movement, timing and camera movement", str(video)))
+            refs.append(Reference("<Video 1>", "choreography, body movement, facial expressions, head movement, timing and camera movement", str(video)))
         if audio:
             refs.append(Reference(f"<Audio {audio_index}>", "standalone sound, music or voice reference", str(audio)))
         return refs
@@ -102,7 +115,8 @@ class PromptBuilder:
         if clothing:
             instructions.append(f"Dress the person in the clothing from {', '.join(clothing)}; maintain garment shape, color, patterns and details throughout the shot.")
         if "<Video 1>" in tags:
-            instructions.append("Follow <Video 1> for choreography, pose sequence, timing and camera motion.")
+            instructions.append("Follow <Video 1> for choreography, pose sequence, facial performance, timing and camera motion.")
+            instructions.append(facial_motion_prompt(', '.join(identity) if identity else "the original dancer in <Video 1>"))
         if any(r.tag.startswith("<Audio") for r in references):
             instructions.append("Generate native synchronized audio guided by the assigned audio references.")
         else:

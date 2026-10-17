@@ -79,6 +79,9 @@ class DancePlanTests(unittest.TestCase):
                     self.assertEqual(refs[1].path, background or "source-frame.png")
                     self.assertIn("exact temporal order", text)
                     self.assertIn("overrides its pose", text)
+                    self.assertIn("Use <Picture 1> for facial identity", text)
+                    self.assertIn("facial performance from <Video 1> at the corresponding moments", text)
+                    self.assertIn("must not freeze the facial expression or head pose", text)
                     self.assertIn("Replace the original dancer" if character else "Keep the original dancer", text)
                     self.assertIn("Replace the source background" if background else "Keep the original room", text)
                     self.assertIn("clothing photograph's person" if outfit else "Keep the original dancer's clothing", text)
@@ -86,6 +89,23 @@ class DancePlanTests(unittest.TestCase):
         refs = section_references("anchor", None, None, None)
         with self.assertRaisesRegex(ValueError, "not connected"):
             dance_prompt("Use <Picture 9>", refs, False, False, False, False)
+
+    def test_photo_identity_and_video_performance_survive_outfit_transitions(self):
+        for paired_audio in (False, True):
+            for transition in (None, {"keep_frames": 24}):
+                with self.subTest(paired_audio=paired_audio, transition=bool(transition)):
+                    refs = section_references("source.png", "character.png", "character.png", "outfit.png",
+                                              "previous.png", "old-outfit.png" if transition else None)
+                    text, mapping = dance_prompt("Dance naturally", refs, paired_audio, True, True, True,
+                                                 transition=transition, reference_scene=True)
+                    self.assertEqual(mapping[0].path, "character.png")
+                    self.assertIn("<Video 1> controls body choreography, facial expressions", text)
+                    self.assertIn("eye blinks, gaze changes, eyebrow movements, smiles, mouth opening and lip movements", text)
+                    self.assertIn("head turns and tilts, synchronized with the source body movement", text)
+                    self.assertIn("<Video 1> overrides its pose, facial expression, gaze and mouth movement", text)
+                    self.assertIn("Keep the camera fixed", text)
+                    self.assertNotIn("choreography and timing only", text)
+                    self.assertIn("rather than inventing speech or lip sync from the music", text)
 
 
 @unittest.skipUnless(os.environ.get("FFMPEG") or shutil.which("ffmpeg"), "ffmpeg is unavailable")

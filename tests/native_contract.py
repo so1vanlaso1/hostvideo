@@ -12,6 +12,7 @@ comfy_path = os.environ.get("H3_COMFY_PATH")
 if not comfy_path:
     raise SystemExit("Set H3_COMFY_PATH to the pinned ComfyUI checkout with its dependencies installed")
 sys.path.insert(0, str(Path(comfy_path).resolve()))
+test_argv = sys.argv[:]
 sys.argv = [sys.argv[0], "--cpu", "--fp16-intermediates"]
 import comfy.options
 comfy.options.enable_args_parsing()
@@ -380,7 +381,67 @@ class NativeContractTests(unittest.TestCase):
                 "outfit_images": json.dumps(paths), "prompt": "Dance naturally", "seed": 123,
                 "megapixels": 0.98, "max_section_seconds": 5, "audio_mode": "source", "profile": "int8-encoder",
                 "steps": 25, "turbo": False, "context_frames": 4, "outfit_durations": "[]",
-                "start_seconds": 0, "duration_seconds": 0}
+                "start_seconds": 0, "duration_seconds": 0,
+                "anchor_mode": "off", "transition_seconds": 0, "quality_mode": "preview"}
+
+    def test_scene_presets_validate_and_keep_photo_scene_for_every_outfit(self):
+        import execution
+        from PIL import Image
+        from h3_pipeline.media import probe
+        self.dance_fixture(outfits=2)
+        Image.new("RGB", (192, 96), "white").save(self.root / "input/character-scene.png")
+        for multiple in (False, True):
+            name = "dance_scene_multiple_outfits_ui.json" if multiple else "dance_scene_single_outfit_ui.json"
+            preset = json.loads((ASSETS / "workflows" / name).read_text())["nodes"][0]
+            cls = nodes.NODE_CLASS_MAPPINGS[preset["type"]]
+            schema = cls.INPUT_TYPES()
+            fields = list(schema["required"]) + list(schema["optional"])
+            self.assertEqual(len(fields), len(preset["widgets_values"]))
+            job = dict(zip(fields, preset["widgets_values"]))
+            self.assertEqual(fields[:3], ["reference_image", "reference_video", "outfit_images" if multiple else "outfit_image"])
+            job.update(reference_image="character-scene.png", reference_video="general-dance.mp4")
+            if multiple:
+                job.update(outfit_images='["general-outfit-0.png", "general-outfit-1.png"]', outfit_durations="[1, 1.5]")
+            else:
+                job["outfit_image"] = "general-outfit-0.png"
+            root = {"1": {"class_type": preset["type"], "inputs": job}}
+            valid, error, _, errors = asyncio.run(execution.validate_prompt("scene-root", root, None))
+            self.assertTrue(valid, json.dumps({"error": error, "nodes": errors}))
+            expanded = cls().expand(**job)["expand"]
+            valid, error, _, errors = asyncio.run(execution.validate_prompt("scene-expanded", expanded, None))
+            self.assertTrue(valid, json.dumps({"error": error, "nodes": errors}))
+            assembler = next(n for n in expanded.values() if n["class_type"] == "H3DanceAssemble")
+            report = json.loads((dance.output_path(assembler["inputs"]["job_directory"]) / "report.json").read_text())
+            self.assertEqual((report["width"], report["height"]), (192, 96))
+            self.assertEqual(report["character_image"], report["background_image"])
+            self.assertTrue(report["reference_scene"])
+            self.assertEqual(report["audio_mode"], "source")
+            self.assertEqual(sum(p["frames"] for p in report["assembly_plan"]), 60)
+            self.assertEqual(len(report["transitions"]), int(multiple))
+            if multiple:
+                self.assertEqual(report["transitions"][0]["boundary_frame"], 24)
+            metadata = probe(report["normalized_source"])
+            video = next(s for s in metadata["streams"] if s["codec_type"] == "video")
+            self.assertEqual((video["width"], video["height"], int(video["nb_frames"])), (192, 96, 60))
+            still = self.root / "fitted-source.png"
+            dance.extract_frame(report["normalized_source"], still, 0)
+            with Image.open(still) as fitted:
+                self.assertLess(max(fitted.getpixel((0, 48))[:3]), 8)  # portrait motion has side padding
+                self.assertGreater(max(fitted.getpixel((96, 48))[:3]), 20)
+            for record in (n["inputs"] for n in expanded.values() if n["class_type"] == "H3RecordSettings"):
+                mapping = json.loads(record["reference_mapping"])
+                self.assertEqual(mapping[0]["path"], mapping[1]["path"])
+                self.assertTrue(mapping[0]["path"].endswith("character-scene.png"))
+                self.assertIn("<Video 1> controls body choreography, facial expressions", record["prompt"])
+                self.assertIn("Use <Picture 1> for facial identity", record["prompt"])
+                self.assertIn("facial performance from <Video 1> at the corresponding moments", record["prompt"])
+                self.assertIn("must not freeze the facial expression or head pose", record["prompt"])
+                self.assertIn("Keep the camera fixed", record["prompt"])
+                self.assertNotIn("speed and camera motion", record["prompt"])
+            self.assertEqual(sum(n["class_type"] in dance.MODEL_LOADER_TYPES for n in expanded.values()), 4)
+            invalid = {**job, "reference_image": "Keep original"}
+            valid, _, _, _ = asyncio.run(execution.validate_prompt("missing-photo", {"1": {"class_type": preset["type"], "inputs": invalid}}, None))
+            self.assertFalse(valid)
 
     def test_general_dance_workflow_expands_and_validates_more_than_nine_outfits(self):
         import execution
@@ -565,5 +626,4 @@ class NativeContractTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    sys.argv = [sys.argv[0]]
-    unittest.main(verbosity=2)
+    unittest.main(argv=test_argv, verbosity=2)

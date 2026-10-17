@@ -7,8 +7,10 @@ let extension, selectedFiles = [], pickerDone;
 const alerts = [], uploads = [];
 const imageNames = ["existing-outfit.png"];
 const videoNames = [];
-const schema = () => ({ character_image: [["Keep original", ...imageNames]],
-    background_image: [["Keep original", ...imageNames]], reference_video: [["Choose dance video", ...videoNames]] });
+const schema = (kind = "H3DanceWorkflow") => kind === "H3DanceWorkflow" ? ({ character_image: [["Keep original", ...imageNames]],
+    background_image: [["Keep original", ...imageNames]], reference_video: [["Choose dance video", ...videoNames]] }) :
+    ({ reference_image: [["Choose character and scene image", ...imageNames]],
+        reference_video: [["Choose dance video", ...videoNames]], outfit_image: [["Choose outfit image", ...imageNames]] });
 class FormData {
     values = {};
     append(key, value) { this.values[key] = value; }
@@ -23,8 +25,9 @@ const sandbox = {
             (file.name.endsWith(".mp4") ? videoNames : imageNames).push(name);
             return { ok: true, json: async () => ({ name: file.name, subfolder: "dance-assets" }) };
         }
-        assert.equal(path, "/object_info/H3DanceWorkflow");
-        return { ok: true, json: async () => ({ H3DanceWorkflow: { input: { required: schema() } } }) };
+        assert.ok(path.startsWith("/object_info/H3"));
+        const kind = path.split("/").at(-1);
+        return { ok: true, json: async () => ({ [kind]: { input: { required: schema(kind) } } }) };
     } },
     FormData,
     alert(message) { alerts.push(message); },
@@ -79,3 +82,46 @@ assert.equal(widget("outfit_images").value, "[]");
 assert.equal(node.widgets.filter(w => w.serialize !== false).length, 16);
 assert.deepEqual(alerts, []);
 console.log("Dance upload controls passed: ordered multi-upload, existing outfits, independent replacements, video selection, clearing, serialization.");
+
+for (const single of [true, false]) {
+    const kind = single ? "H3SceneDanceSingleOutfit" : "H3SceneDanceMultipleOutfits";
+    class SceneNode extends Node {
+        onNodeCreated() {}
+        constructor() {
+            super();
+            this.widgets = ["reference_image", "reference_video", single ? "outfit_image" : "outfit_images", "anchor_manifest"]
+                .map(name => ({ name, value: name.endsWith("images") || name === "anchor_manifest" ? "[]" : "", options: {} }));
+        }
+    }
+    await extension.beforeRegisterNodeDef(SceneNode, { name: kind, input: { required: schema(kind) } });
+    const scene = new SceneNode();
+    scene.onNodeCreated();
+    const control = name => scene.widgets.find(w => w.name === name);
+    const press = async name => { await control(name).callback(); if (pickerDone) { await pickerDone; pickerDone = null; } };
+    for (const [label, field, name] of [
+        ["1. Upload character and scene image", "reference_image", "photo.png"],
+        ["2. Upload dance video", "reference_video", "motion.mp4"],
+    ]) {
+        selectedFiles = [{ name }];
+        await press(label);
+        assert.equal(control(field).value, `dance-assets/${name}`);
+        assert.ok(control(field).options.values.includes(control(field).value));
+    }
+    selectedFiles = [{ name: "outfit-A.png" }];
+    if (single) {
+        await press("3. Upload outfit image");
+        selectedFiles = [{ name: "outfit-B.png" }];
+        await press("3. Upload outfit image");
+        assert.equal(control("outfit_image").value, "dance-assets/outfit-B.png");
+        assert.equal(control("outfit_images"), undefined);
+    } else {
+        selectedFiles.push({ name: "outfit-B.png" });
+        await press("3. Add outfit images (multiple)");
+        assert.deepEqual(JSON.parse(control("outfit_images").value), ["dance-assets/outfit-A.png", "dance-assets/outfit-B.png"]);
+    }
+    assert.equal(control("reference_image").value, "dance-assets/photo.png");
+    assert.equal(control("Upload replacement background"), undefined);
+    assert.equal(scene.widgets.filter(w => w.serialize !== false).length, 4);
+}
+assert.deepEqual(alerts, []);
+console.log("Scene workflow upload controls passed: shared photo, motion video, single-outfit replacement, multiple-outfit ordering.");

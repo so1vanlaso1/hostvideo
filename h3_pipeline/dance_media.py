@@ -6,13 +6,16 @@ from .media import executable, run, probe, verify_output
 from .references import FPS
 
 
-def normalize_dance_video(source, destination, width, height, start=0, duration=None):
+def normalize_dance_video(source, destination, width, height, start=0, duration=None, *, preserve_aspect=False):
     """Make one 24 fps timeline; every section subsequently uses frame indices."""
     command = [executable("ffmpeg"), "-nostdin", "-v", "error", "-y", "-ss", str(start), "-i", str(source)]
     if duration is not None:
         command += ["-t", str(duration)]
+    scale = f"scale={width}:{height}:flags=lanczos"
+    if preserve_aspect:
+        scale += f":force_original_aspect_ratio=decrease:force_divisible_by=2,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2"
     run(command + ["-map", "0:v:0", "-map", "0:a:0?", "-vf",
-                   f"fps={FPS},scale={width}:{height}:flags=lanczos,setsar=1,setpts=PTS-STARTPTS",
+                   f"fps={FPS},{scale},setsar=1,setpts=PTS-STARTPTS",
                    "-c:v", "libx264", "-crf", "16", "-preset", "fast", "-pix_fmt", "yuv420p",
                    "-af", "asetpts=PTS-STARTPTS,aresample=48000", "-c:a", "aac", "-ac", "2",
                    "-movflags", "+faststart", str(destination)])

@@ -180,11 +180,12 @@ def quality_start_graph():
 def dance_graph():
     from h3_pipeline.dance_workflow import KEEP_ORIGINAL
     widgets = ["Choose dance video", KEEP_ORIGINAL, KEEP_ORIGINAL, "[]",
-               "A realistic full-body dance with natural motion and consistent appearance.",
+               "A realistic full-body dance. Keep the selected character's facial identity while matching the source video's expressions, blinking, mouth movement and head motion in time with the dance.",
                123456789, 0.98, 5.0, "source", DEFAULT_PROFILE, 25, False, 12, "[]", 0.0, 0.0]
     widgets += [1.0, "auto", "[]", "pose_warn", ""]
     instructions = ("1. Upload/select any dance video.\n"
                     "2. Keep original character/background, or upload/select replacements.\n"
+                    "   Character image = facial identity; dance video = expressions, blinking, mouth and head movement.\n"
                     "3. Upload any number of outfits in appearance order (one file = one outfit).\n"
                     "   Reorder filenames in outfit_images; [] keeps source clothing.\n"
                     "4. Queue once. All outfit sections render and join automatically.\n"
@@ -199,7 +200,7 @@ def dance_graph():
                     "Use anchor_manifest for manually edited source-pose images; automatic anchors still need review. "
                     "Find clips, graphs and reports under output/h3/dance/. "
                     "This is a configurable ComfyUI workflow; the Python/CLI generation pipeline is unchanged.")
-    return {"id": "2e4d1c28-42d1-453a-a01f-ecbb91bbd7f6", "revision": 2,
+    return {"id": "2e4d1c28-42d1-453a-a01f-ecbb91bbd7f6", "revision": 3,
             "last_node_id": 2, "last_link_id": 0,
             "nodes": [{"id": 1, "type": "H3DanceWorkflow", "pos": [80, 80], "size": [700, 1500],
                        "flags": {}, "order": 0, "mode": 0, "inputs": [],
@@ -214,9 +215,55 @@ def dance_graph():
             "version": 0.4}
 
 
+def scene_dance_graph(multiple=False):
+    graph = dance_graph()
+    graph["id"] = "44332d3d-de32-43ec-8887-ea1850fd9ab8" if multiple else "b84f75bf-f35c-4ecb-a6cd-097994d12be1"
+    graph["revision"] = 2
+    node, note = graph["nodes"]
+    kind = "H3SceneDanceMultipleOutfits" if multiple else "H3SceneDanceSingleOutfit"
+    node["type"] = kind
+    node["title"] = "Photo + Dance + Multiple Outfits" if multiple else "Photo + Dance + One Outfit"
+    node["properties"]["Node name for S&R"] = kind
+    # Keep widget order identical to each node's required + optional schema.
+    widgets = node["widgets_values"]
+    settings = widgets[4:13] + (widgets[13:14] if multiple else []) + widgets[14:16]
+    settings[0] = "The photographed character dances in the same photographed scene, wearing the supplied outfit. Keep the photograph's facial identity while matching the dance video's expressions, blinking, gaze, mouth movement and head motion at the same moments."
+    options = ([1.0] if multiple else []) + ["auto", "[]", "preview", ""]
+    node["widgets_values"] = ["Choose character and scene image", "Choose dance video",
+                              "[]" if multiple else "Choose outfit image"] + settings + options
+    instructions = (
+        "1. Upload ONE reference picture: character + scene + background.\n"
+        "2. Upload the dance video: body choreography, facial expressions and timing.\n"
+        + ("3. Add outfit images in appearance order. Edit outfit_images to reorder.\n" if multiple else
+           "3. Upload one clothing image: this outfit stays on for the entire dance.\n")
+        + "4. Queue once. The final video appears here and in output/h3/dance/.\n\n"
+        "The same reference picture supplies facial identity and scene in every section. "
+        "The dance video supplies expressions, blinking, gaze, mouth movement and head motion at their original times. "
+        "Preserve the character's identity while allowing the face to move; the photo's expression is not held fixed. "
+        "The output aspect ratio comes from that picture. The dance reference is fitted without cropping or stretching; "
+        "its dancer's identity, room, clothing and camera movements are excluded by the prompt. "
+        "Clothes photos supply only garments. Use a full-body reference with room to dance.\n\n"
+        + ("Outfits share equal time by default. outfit_durations sets seconds per outfit: "
+           "for a 12-second selection and three outfits, use [4, 4, 4]. Values must cover the selected video. "
+           "transition_seconds=1 uses generated clothing transformations; 0 uses cuts. "
+           "Long outfit intervals split automatically, with the same outfit retained across chunks.\n\n" if multiple else "")
+        + "duration_seconds=0 uses the full video; choose a short excerpt for your first test. "
+        "Source audio is retained when present. Auto anchors render and refine each section. "
+        "Preview quality mode needs no pose detector. Compare review.mp4 before judging dance accuracy, "
+        "facial identity, expression timing, garments, background and joins. Facial transfer is prompt-guided and needs visual review; "
+        "pose scores do not verify expressions. These are generative references, not a pixel-locked background or guaranteed pose tracking."
+    )
+    note["widgets_values"] = [instructions]
+    note["size"] = [490, 620]
+    graph["extra"]["h3_pipeline"]["instructions"] = instructions
+    return graph
+
+
 if __name__ == "__main__":
     write_json(ASSETS / "workflows" / "ref2va_api.json", api_graph())
     write_json(ASSETS / "workflows" / "ref2va_16gb_ui.json", ui_graph())
     write_json(ASSETS / "workflows" / "ref2va_quality_5s_098mp.json", quality_start_graph())
     write_json(ASSETS / "workflows" / "dance_general_ui.json", dance_graph())
+    write_json(ASSETS / "workflows" / "dance_scene_single_outfit_ui.json", scene_dance_graph())
+    write_json(ASSETS / "workflows" / "dance_scene_multiple_outfits_ui.json", scene_dance_graph(multiple=True))
     print("Built API and UI workflows from the pinned official template")

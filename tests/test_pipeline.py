@@ -53,6 +53,8 @@ class ReferenceTests(unittest.TestCase):
             prompt = PromptBuilder.build("Dance in a studio", refs)
             self.assertIn("<Picture 3> defines clothing", prompt)
             self.assertIn("<Audio 2> defines standalone", prompt)
+            self.assertIn("Use <Picture 1>, <Picture 2> for facial identity", prompt)
+            self.assertIn("facial performance from <Video 1> at the corresponding moments", prompt)
             with self.assertRaises(ValueError):
                 PromptBuilder.build("Use <Picture 9>", refs)
             with self.assertRaises(ValueError):
@@ -61,6 +63,7 @@ class ReferenceTests(unittest.TestCase):
     def test_silent_video_does_not_consume_audio_tag(self):
         refs = ReferenceManager.mapping([], "dance.mp4", False, "voice.wav")
         self.assertEqual([r.tag for r in refs], ["<Video 1>", "<Audio 1>"])
+        self.assertIn("facial performance from <Video 1>", PromptBuilder.build("Dance", refs))
 
 
 class WorkflowTests(unittest.TestCase):

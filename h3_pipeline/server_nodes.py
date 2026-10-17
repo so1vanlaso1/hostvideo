@@ -325,7 +325,7 @@ class H3ReferencePrompt:
                 Reference("<Picture 2>", "clothing and garment details", clothing_image)]
         if metadata["paired_audio"]:
             refs.append(Reference("<Audio 1>", "soundtrack, rhythm and atmosphere paired with <Video 1>", metadata["source"]))
-        refs.append(Reference("<Video 1>", "choreography, body movement, timing and camera movement", metadata["source"]))
+        refs.append(Reference("<Video 1>", "choreography, body movement, facial expressions, head movement, timing and camera movement", metadata["source"]))
         return PromptBuilder.build(prompt, refs), json.dumps([r.dict() for r in refs])
 
 

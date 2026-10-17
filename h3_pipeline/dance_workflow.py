@@ -1,7 +1,7 @@
 """Planning and prompts for the general ComfyUI wardrobe-change workflow."""
 import math
 
-from .references import FPS, MAX_FRAMES, MAX_PIXELS, Reference, PromptBuilder
+from .references import FPS, MAX_FRAMES, MAX_PIXELS, Reference, PromptBuilder, facial_motion_prompt
 
 KEEP_ORIGINAL = "Keep original"
 
@@ -157,11 +157,12 @@ def section_references(anchor, character, background, outfit, previous_frame=Non
     return images
 
 
-def dance_prompt(prompt, images, paired_audio, replace_character, replace_background, has_outfit, reference_video="reference.mp4", transition=None):
+def dance_prompt(prompt, images, paired_audio, replace_character, replace_background, has_outfit, reference_video="reference.mp4", transition=None,
+                 reference_scene=False):
     refs = list(images)
     if paired_audio:
         refs.append(Reference("<Audio 1>", "source dance soundtrack paired with <Video 1>", str(reference_video)))
-    refs.append(Reference("<Video 1>", "the exact chronological dance excerpt for this section", str(reference_video)))
+    refs.append(Reference("<Video 1>", "the exact chronological dance excerpt, including body choreography, facial performance and head movement for this section", str(reference_video)))
     character = ("Replace the original dancer with the person in <Picture 1>. Do not borrow the original dancer's face or hair."
                  if replace_character else "Keep the original dancer from <Video 1> and <Picture 1>, including face, hair, skin tone and body proportions.")
     background = ("Replace the source background with the scene in <Picture 2>; ignore any people in this scene reference."
@@ -173,16 +174,35 @@ def dance_prompt(prompt, images, paired_audio, replace_character, replace_backgr
                     f"transform the garments once into the complete outfit from <Picture 3> between 0.000 and {(transition['keep_frames'] - 1) / FPS:.3f} seconds. "
                     "Finish in the new outfit and retain it through the remaining context. A continuous fully clothed fashion transformation, "
                     "no alternating outfits, no repeated transformation, no body or face morph. The anchored endpoint images define the exact poses and outfits.")
+    summary = ("[video editing + reference generation] Edit <Video 1>. Preserve its original choreography and timing. "
+               "Change only the explicitly selected clothing, character or background.")
+    retention = ("Preserve the frame-by-frame dance sequence, foot contacts, body position, movement direction, camera trajectory and shot timing. "
+                 "Identity and scene remain preserved unless a replacement is explicitly selected.")
+    motion = ("Follow <Video 1> in its exact temporal order: matching dance poses, gestures, footwork, movement direction, speed and camera motion. "
+              "Start with its opening pose and finish with its final pose. Do not invent a different dance or restart the choreography.")
+    if reference_scene:
+        summary = ("[reference generation] Animate the person in <Picture 1> dancing in that picture's own scene, "
+               "wearing the supplied clothes and following the choreography, facial performance and timing of <Video 1>.")
+        character = ("Preserve the person in <Picture 1>: the same facial identity, hair, skin tone and body proportions, with expressions animated from <Video 1>. "
+                     "Replace only their clothing using the outfit reference. Ignore every other reference person's identity.")
+        background = ("<Picture 1> and <Picture 2> are the same character-and-scene photograph. Preserve its environment, "
+                      "background objects, layout, lighting, viewpoint and camera composition throughout the dance. "
+                      "Animate the existing person; do not leave a second static copy in the background. Keep the camera fixed.")
+        retention = ("The photograph controls identity, scene and framing. The clothing image controls garments only. "
+                     "<Video 1> controls body choreography, facial expressions, gaze, blinking, mouth movement, head movement and their timing; "
+                     "ignore its dancer's facial identity, hair, skin tone, body proportions, clothes, location, camera movement and cuts. "
+                     "Any black padding in the motion reference is preprocessing, not part of the target scene.")
+        motion = ("Follow <Video 1> in its exact temporal order: matching dance poses, gestures, footwork, movement direction and speed. "
+                  "Transfer the movements into the photographed scene while maintaining the photograph's viewpoint. "
+                  "Start with the reference dance's opening pose and finish with its final pose. Do not restart or invent a different dance.")
     text = ["subject_definitions:", *[f"{r.tag} defines {r.role}." for r in refs],
-            "summary:\n[video editing + reference generation] Edit <Video 1>. Preserve its original choreography and timing. "
-            "Change only the explicitly selected clothing, character or background.",
-            "retention_analysis:\nPreserve the frame-by-frame dance sequence, foot contacts, body position, movement direction, camera trajectory and shot timing. "
-            "Identity and scene remain preserved unless a replacement is explicitly selected.", "detailed_description:"]
+            "summary:\n" + summary, "retention_analysis:\n" + retention, "detailed_description:"]
     text += [character, background, clothing,
-             "Follow <Video 1> in its exact temporal order: matching dance poses, gestures, footwork, movement direction, speed and camera motion. Start with its opening pose and finish with its final pose. Do not invent a different dance or restart the choreography.",
+             motion,
+             facial_motion_prompt("<Picture 1>"),
              "Maintain the same selected character and scene throughout. One continuous shot in this section, coherent hands and limbs, full-body framing, no extra people, labels or clothing-photo backgrounds."]
     if images[-1].role.startswith("appearance continuity"):
-        text.append(f"Use {images[-1].tag} only to maintain the generated character's appearance and scene across the cut. The current outfit reference overrides its old clothes; <Video 1> overrides its pose.")
+        text.append(f"Use {images[-1].tag} only to maintain the generated character's appearance and scene across the cut. The current outfit reference overrides its old clothes; <Video 1> overrides its pose, facial expression, gaze and mouth movement at the current timestamp.")
     text.append("Generate synchronized audio following <Audio 1>." if paired_audio else "Generate suitable synchronized dance music.")
     # Validate references without adding the generic single-outfit prompt rules.
     PromptBuilder.build(prompt, refs)

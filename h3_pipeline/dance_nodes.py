@@ -6,6 +6,7 @@ import uuid
 
 import folder_paths
 import torch
+from PIL import Image, ImageOps
 from comfy_api.latest import InputImpl, Types, io, ui
 from comfy_execution.graph_utils import GraphBuilder, is_link
 
@@ -111,12 +112,14 @@ def parse_anchor_manifest(value, total_frames, outfit_count):
 
 
 class H3DanceWorkflow:
+    REFERENCE_SCENE = False
+
     @classmethod
     def INPUT_TYPES(cls):
         images = [KEEP_ORIGINAL] + input_files(IMAGE_SUFFIXES)
         return {"required": {
             "reference_video": (["Choose dance video"] + input_files(VIDEO_SUFFIXES), {"video_upload": True}),
-            "character_image": (images, {"tooltip": "Keep the source dancer, or choose a replacement character."}),
+            "character_image": (images, {"tooltip": "Keep the source dancer, or choose a replacement character. Facial identity comes from this image; expressions and head movement follow the dance video."}),
             "background_image": (images, {"tooltip": "Keep the source scene, or choose a replacement background."}),
             "outfit_images": ("STRING", {"default": "[]", "multiline": True, "tooltip": "Upload/select outfits below, in their appearance order. Empty keeps source clothing."}),
             "prompt": ("STRING", {"default": "A realistic full-body dance with natural motion and consistent appearance.", "multiline": True}),
@@ -165,7 +168,6 @@ class H3DanceWorkflow:
                megapixels, max_section_seconds, audio_mode, profile, steps, turbo, context_frames=12,
                outfit_durations="[]", start_seconds=0, duration_seconds=0, unique_id=None,
                transition_seconds=1.0, anchor_mode="auto", anchor_manifest="[]", quality_mode="pose_warn", pose_model=""):
-        from PIL import Image
         if not prompt.strip():
             raise ValueError("Enter a nonempty dance prompt")
         if turbo and steps != 4:
@@ -193,6 +195,9 @@ class H3DanceWorkflow:
         rotation = next((s.get("rotation", 0) for s in video.get("side_data_list", []) if "rotation" in s), 0)
         if abs(rotation) % 180 == 90:
             iw, ih = ih, iw
+        if self.REFERENCE_SCENE:
+            with Image.open(character) as image:
+                iw, ih = ImageOps.exif_transpose(image).size
         width, height = dance_canvas(iw, ih, megapixels)
         job_id = "dance-" + time.strftime("%Y%m%d-%H%M%S", time.gmtime()) + "-" + uuid.uuid4().hex[:8]
         job_directory = "h3/dance/" + job_id
@@ -201,7 +206,8 @@ class H3DanceWorkflow:
         inputs = Path(folder_paths.get_input_directory()) / "h3-dance" / job_id
         inputs.mkdir(parents=True)
         normalized = inputs / "source.mp4"
-        normalized_info = normalize_dance_video(source, normalized, width, height, start_seconds, duration_seconds or None)
+        normalized_info = normalize_dance_video(source, normalized, width, height, start_seconds, duration_seconds or None,
+                                                preserve_aspect=self.REFERENCE_SCENE)
         total_frames = int(next(s for s in normalized_info["streams"] if s["codec_type"] == "video")["nb_frames"])
         paired = any(s["codec_type"] == "audio" for s in normalized_info["streams"])
         sections = plan_sections(total_frames, outfits, durations, max_section_seconds, context_frames)
@@ -225,6 +231,7 @@ class H3DanceWorkflow:
         anchor = extract_frame(normalized, inputs / "source-anchor.png", 0)
         report = {"job_id": job_id, "status": "planned", "reference_video": str(source),
                   "character_image": character, "background_image": background, "outfit_images": outfits,
+                  "reference_scene": self.REFERENCE_SCENE,
                   "frame_count": total_frames, "duration": total_frames / FPS, "width": width, "height": height,
                   "source_start_seconds": start_seconds, "seed": seed, "steps": steps, "turbo": turbo,
                   "profile": profile, "audio_mode": "source" if paired and audio_mode == "source" else "generated",
@@ -252,7 +259,8 @@ class H3DanceWorkflow:
                                       str(input_path(section["outfit_image"])) if section["outfit_image"] else None,
                                       previous_frame, str(input_path(section["from_outfit_image"])) if section.get("from_outfit_image") else None)
             effective_prompt, mapping = dance_prompt(prompt, refs, paired, bool(character), bool(background), bool(outfits), reference,
-                                                      transition=section if section["kind"] == "transition" else None)
+                                                      transition=section if section["kind"] == "transition" else None,
+                                                      reference_scene=self.REFERENCE_SCENE)
             # Preprocess selected references once; the continuity frame is produced
             # later by the preceding section and loaded only after its gate.
             image_paths = []
@@ -350,6 +358,63 @@ class H3DanceWorkflow:
             assembled.set_override_display_id(unique_id)
         write_json(work / "expanded-workflow-api.json", graph.finalize())
         return {"result": (assembled.out(0), assembled.out(1)), "expand": graph.finalize()}
+
+
+class H3SceneDanceMultipleOutfits(H3DanceWorkflow):
+    REFERENCE_SCENE = True
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        schema = super().INPUT_TYPES()
+        required = schema["required"]
+        required.pop("character_image")
+        required.pop("background_image")
+        schema["required"] = {
+            "reference_image": (["Choose character and scene image"] + input_files(IMAGE_SUFFIXES),
+                                {"tooltip": "This picture defines facial identity, character, scene, lighting and camera composition. The dance video supplies facial expressions, blinking, mouth movement and head motion."}),
+            **required}
+        required["outfit_images"][1]["tooltip"] = "Upload clothes in appearance order. Each image supplies only the outfit, never its model or background."
+        schema["optional"]["quality_mode"] = (["preview", "pose_warn", "pose_strict"],
+            {"tooltip": "Preview creates side-by-side reviews. Pose scores can flag intentional changes in framing or body proportions."})
+        return schema
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, reference_image, reference_video, outfit_images, outfit_durations="[]"):
+        try:
+            input_path(reference_image)
+            if not parse_outfits(outfit_images):
+                return "Add at least one outfit image."
+        except (ValueError, OSError) as exc:
+            return str(exc)
+        return super().VALIDATE_INPUTS(reference_video, reference_image, reference_image, outfit_images, outfit_durations)
+
+    def expand(self, reference_image, reference_video, outfit_images, **settings):
+        input_path(reference_image)
+        if not parse_outfits(outfit_images):
+            raise ValueError("Add at least one outfit image.")
+        return super().expand(reference_video=reference_video, character_image=reference_image,
+                              background_image=reference_image, outfit_images=outfit_images, **settings)
+
+
+class H3SceneDanceSingleOutfit(H3SceneDanceMultipleOutfits):
+    @classmethod
+    def INPUT_TYPES(cls):
+        schema = super().INPUT_TYPES()
+        schema["required"] = {
+            ("outfit_image" if name == "outfit_images" else name):
+                (["Choose outfit image"] + input_files(IMAGE_SUFFIXES), {"tooltip": "Wear this outfit throughout the dance."})
+                if name == "outfit_images" else value
+            for name, value in schema["required"].items() if name != "outfit_durations"}
+        schema["optional"].pop("transition_seconds")
+        return schema
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, reference_image, reference_video, outfit_image):
+        return super().VALIDATE_INPUTS(reference_image, reference_video, json.dumps([outfit_image]))
+
+    def expand(self, reference_image, reference_video, outfit_image, **settings):
+        return super().expand(reference_image, reference_video, json.dumps([outfit_image]),
+                              outfit_durations="[]", transition_seconds=0, **settings)
 
 
 class H3DanceBeginSection:
@@ -610,4 +675,5 @@ class H3DanceResume:
 
 
 NODE_CLASS_MAPPINGS = {cls.__name__: cls for cls in (
-    H3DanceWorkflow, H3DanceBeginSection, H3DanceLoadImage, H3DanceExtractGuide, H3DanceSaveAnchors, H3DanceSaveSection, H3DanceAssemble, H3DanceResume)}
+    H3DanceWorkflow, H3SceneDanceSingleOutfit, H3SceneDanceMultipleOutfits,
+    H3DanceBeginSection, H3DanceLoadImage, H3DanceExtractGuide, H3DanceSaveAnchors, H3DanceSaveSection, H3DanceAssemble, H3DanceResume)}

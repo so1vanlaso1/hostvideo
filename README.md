@@ -77,6 +77,17 @@ For automatic startup after container restarts, optionally register `scripts/sta
 
 ## 3. Browser workflow
 
+For **one picture defining both the character and scene**, import either:
+
+- **`dance_scene_single_outfit_ui.json`** — picture, dance video, one outfit image; the outfit stays on throughout.
+- **`dance_scene_multiple_outfits_ui.json`** — picture, dance video, ordered outfit images; clothes change during the dance.
+
+Both are under `h3_pipeline/assets/workflows/` and included in `h3 export-workflows`.
+Use the three numbered upload buttons, then queue. The picture controls identity,
+background, lighting, viewpoint and output aspect ratio. The video supplies motion
+and timing; clothes photos supply garments. See [photo and dance workflows](docs/photo-dance-workflows.md)
+for timing controls and limitations.
+
 For reusable dance videos with wardrobe changes, load **`h3_pipeline/assets/workflows/dance_general_ui.json`**. This develops the latest three-section dance example into a configurable ComfyUI workflow; the existing Python/CLI generation API stays unchanged.
 
 The revised workflow adds outfit-correct frame anchors, a refinement pass, separate

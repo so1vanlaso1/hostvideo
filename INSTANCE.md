@@ -4,12 +4,21 @@ Runtime: `/workspace/minimax-h3`
 
 Source: `/workspace/hostvideo`
 
-Browser: http://118.100.214.170:61232/ (public, no authentication)
+The photo dance presets (`dance_scene_single_outfit_ui.json` and
+`dance_scene_multiple_outfits_ui.json`) now explicitly use the character photo
+for facial identity and the dance video for expressions, blinking, gaze, mouth
+movement and head motion at matching times. These rules apply to anchor passes,
+refinement and outfit transformations. The general dance and Ref2VA prompt
+builders use the same facial guidance. Reload the workflow after refreshing
+ComfyUI. Facial performance remains prompt-guided and requires visual review;
+body pose scores do not measure it. See [photo dance instructions](docs/photo-dance-workflows.md).
 
-Open the browser URL directly; no login or token is required. ComfyUI is excluded from Caddy authentication on external port 10100. Anyone with the address can submit GPU jobs. Vast rental charges still apply. Private alternative from your own computer:
+Browser: http://171.227.20.127:15666/ (public, no authentication; current instance)
+
+Open the browser URL directly; no login or token is required. ComfyUI is routed through Caddy on external port 10100, with authentication excluded for that port. Anyone with the address can submit GPU jobs. Vast rental charges still apply. This address can change if the instance is recreated. Private alternative from your own computer:
 
 ```bash
-ssh -p 61198 -L 8188:127.0.0.1:8188 root@118.100.214.170
+ssh -p 15617 -L 8188:127.0.0.1:8188 root@171.227.20.127
 ```
 
 Then open http://localhost:8188.
@@ -17,9 +26,9 @@ Then open http://localhost:8188.
 The server is managed by supervisor and starts automatically on container startup:
 
 ```bash
-supervisorctl status hostvideo
-supervisorctl restart hostvideo
-tail -f /var/log/portal/hostvideo.log
+supervisorctl status comfyui_h3
+supervisorctl restart comfyui_h3
+tail -f /var/log/portal/comfyui_h3.log
 ```
 
 In ComfyUI’s Workflows browser, select **`ref2va_quality_5s_098mp.json`**. Upload your character, outfit, and dance references before queueing. This starts at 5 seconds and native 1344×768 resolution (0.98 MP), with 25 base steps, `res_multistep` / `simple`, Turbo disabled, INT8 Qwen3-VL encoder, `max` image references and H.264 CRF 16. The main `ref2va_16gb_ui.json` workflow uses the same quality settings at 15 seconds. Reload the workflow from the browser to replace settings already open in a tab. Previous workflow files are backed up under `/workspace/minimax-h3/backups/pre-quality-workflows/`. Outputs are under `/workspace/minimax-h3/output/`; CLI jobs and downloaded outputs are under `/workspace/minimax-h3/jobs/`.
