@@ -100,11 +100,18 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(graph["126"]["class_type"], "BasicGuider")
         self.assertEqual(graph["92"]["inputs"]["format.codec"], "h264")
 
-    def test_turbo_is_explicit_and_requires_four_steps(self):
+    def test_turbo_four_and_eight_steps_remain_explicit(self):
         graph = validate_graph(self.graph(turbo=True, steps=4))
         self.assertEqual(graph["126"]["inputs"]["model"], ["145", 0])
         self.assertEqual(graph["124"]["inputs"]["model"], ["145", 0])
-        with self.assertRaisesRegex(ValueError, "four steps"):
+        self.assertEqual(graph["123"]["inputs"]["sampler_name"], "res_multistep")
+        fast = validate_graph(self.graph(turbo=True, steps=8, profile="primary"))
+        self.assertEqual(fast["124"]["inputs"]["steps"], 8)
+        self.assertEqual(fast["123"]["inputs"]["sampler_name"], "euler")
+        self.assertEqual(fast["145"]["inputs"]["lora_name"],
+                         "minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors")
+        self.assertIn("nvfp4", fast["128"]["inputs"]["clip_name"])
+        with self.assertRaisesRegex(ValueError, "four or eight steps"):
             self.graph(turbo=True, steps=25)
 
     def test_profiles_are_explicit(self):
