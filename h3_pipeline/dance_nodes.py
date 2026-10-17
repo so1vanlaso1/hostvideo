@@ -170,8 +170,8 @@ class H3DanceWorkflow:
                transition_seconds=1.0, anchor_mode="auto", anchor_manifest="[]", quality_mode="pose_warn", pose_model=""):
         if not prompt.strip():
             raise ValueError("Enter a nonempty dance prompt")
-        if turbo and steps != 4:
-            raise ValueError("Turbo requires exactly four steps")
+        if turbo and steps not in (4, 8):
+            raise ValueError("Turbo requires four or eight steps")
         if anchor_mode not in {"auto", "supplied", "off"} or quality_mode not in {"preview", "pose_warn", "pose_strict"}:
             raise ValueError("Invalid anchor or quality mode")
         if quality_mode.startswith("pose"):
