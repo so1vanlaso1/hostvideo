@@ -37,8 +37,8 @@ def build_workflow(*, prompt, images, video, audio, include_video_audio, width, 
         raise ValueError("turbo must be a boolean")
     if isinstance(steps, bool) or not isinstance(steps, int) or not 1 <= steps <= 100:
         raise ValueError("steps must be an integer between 1 and 100")
-    if turbo and steps != 4:
-        raise ValueError("Turbo requires exactly four steps; disable turbo for base sampling")
+    if turbo and steps not in (4, 8):
+        raise ValueError("Turbo requires four or eight steps; disable turbo for base sampling")
     graph = json.loads((ASSETS / "workflows" / "ref2va_api.json").read_text())
     files = model_files(profile)
     for node, key, field in (("127", "diffusion", "unet_name"), ("128", "encoder", "clip_name"),
@@ -46,14 +46,19 @@ def build_workflow(*, prompt, images, video, audio, include_video_audio, width, 
         graph[node]["inputs"][field] = files[key]["path"].split("/", 1)[1]
     graph["200"]["inputs"].update(job_id=job_id, memory_level=memory_level)
     graph["124"]["inputs"].update(scheduler=scheduler, steps=steps)
+    turbo_lora = ("minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors"
+                  if turbo and steps == 8 else files["lora"]["path"].split("/", 1)[1])
     if turbo:
         graph["145"] = {"class_type": "H3LoraLoader", "inputs": {
-            "model": ["127", 0], "lora_name": files["lora"]["path"].split("/", 1)[1],
+            "model": ["127", 0], "lora_name": turbo_lora,
             "strength_model": 1.0, "context": ["201", 0]}}
     else:
         graph.pop("145", None)
     for node in ("124", "126"):
         graph[node]["inputs"]["model"] = ["145" if turbo else "127", 0]
+    if turbo and steps == 8:
+        # The 768p Ref2VA distillation recommends Euler + simple scheduling.
+        graph["123"]["inputs"]["sampler_name"] = "euler"
     graph["129"]["inputs"]["noise_seed"] = seed
     conditioning = graph["136"]["inputs"]
     conditioning.update(prompt=prompt, width=width, height=height, length=length, ref_image_size=ref_image_size)
@@ -78,7 +83,7 @@ def build_workflow(*, prompt, images, video, audio, include_video_audio, width, 
     graph["201"]["inputs"].update(width=width, height=height, length=length, prompt=prompt, seed=seed,
                                         diffusion=files["diffusion"]["path"], encoder=files["encoder"]["path"],
                                         ref_image_size=ref_image_size, turbo=turbo,
-                                        lora=files["lora"]["path"].split("/", 1)[1] if turbo else "")
+                                        lora=turbo_lora if turbo else "")
     graph["92"]["inputs"]["filename_prefix"] = f"h3/{job_id}/clip"
     return graph
 
@@ -90,6 +95,6 @@ def validate_graph(graph):
             if isinstance(value, list):
                 if len(value) != 2 or str(value[0]) not in graph or not isinstance(value[1], int):
                     raise ValueError(f"Invalid connection {node_id}.{key}: {value}")
-    if "145" in graph and graph["124"]["inputs"]["steps"] != 4:
-        raise ValueError("Turbo graph must use four steps")
+    if "145" in graph and graph["124"]["inputs"]["steps"] not in (4, 8):
+        raise ValueError("Turbo graph must use four or eight steps")
     return graph
