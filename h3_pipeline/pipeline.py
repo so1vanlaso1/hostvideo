@@ -63,8 +63,8 @@ class MiniMaxH3Pipeline:
             raise ValueError("turbo must be a boolean")
         if isinstance(steps, bool) or not isinstance(steps, int) or not 1 <= steps <= 100:
             raise ValueError("steps must be an integer between 1 and 100")
-        if turbo and steps != 4:
-            raise ValueError("Turbo requires exactly four steps; disable turbo for base sampling")
+        if turbo and steps not in (4, 8):
+            raise ValueError("Turbo requires four or eight steps; disable turbo for base sampling")
         if timeout <= 0:
             raise ValueError("timeout must be positive")
         if seed is None:
