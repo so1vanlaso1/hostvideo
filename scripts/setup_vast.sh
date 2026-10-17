@@ -131,18 +131,14 @@ trap 'echo "Setup failed at line $LINENO. See $H3_ROOT/logs/setup.log; fix the r
 echo "Runtime: $H3_ROOT | profile: $PROFILE | port: $H3_PORT"
 # Fail before large dependency downloads when storage cannot hold the selected models.
 if [[ "$DOWNLOAD" == true ]]; then
-  python3 - "$SOURCE_DIR" "$H3_ROOT" "$PROFILE" <<'PY'
+  python3 - "$H3_ROOT" <<'PY'
 import shutil
 import sys
 from pathlib import Path
-sys.path.insert(0, sys.argv[1])
-from h3_pipeline.config import model_files
-root = Path(sys.argv[2])
-remaining = sum(item["size"] for item in model_files(sys.argv[3]).values()
-                if not (root / "models" / item["path"]).exists())
-required = remaining + 25 * 1024**3
+root = Path(sys.argv[1])
+required = 70 * 1000**3
 if shutil.disk_usage(root).free < required:
-    raise SystemExit(f"Need at least {required / 1024**3:.1f} GiB free for remaining models, dependencies and outputs; choose a larger disk or --root.")
+    raise SystemExit(f"Need at least {required / 1000**3:.1f} GB free for remaining models, dependencies and outputs; choose a larger disk or --root.")
 PY
 fi
 
@@ -253,6 +249,7 @@ then
   "$PYTHON" -m pip install -c "$H3_ROOT/locks/torch-constraints.txt" \
   "sageattention @ git+https://github.com/thu-ml/SageAttention.git@$SAGE_REVISION" --no-build-isolation --no-deps --no-cache-dir --force-reinstall
 fi
+"$PYTHON" "$SOURCE_DIR/scripts/repair_cusparselt.py"
 "$PYTHON" -m pip check
 "$PYTHON" -c 'import pathlib, sys, h3_pipeline; actual = pathlib.Path(h3_pipeline.__file__).resolve(); expected = pathlib.Path(sys.argv[1]).resolve() / "h3_pipeline/__init__.py"; assert actual == expected, f"Wrong source checkout: {actual}"; print(f"Verified source: {actual}")' "$SOURCE_DIR"
 

@@ -2,6 +2,7 @@ import os
 import json
 from pathlib import Path
 import tempfile
+import threading
 from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, patch
@@ -25,9 +26,9 @@ class HardwareTests(unittest.TestCase):
     def test_startup_policy_uses_shared_memory_headroom_and_unpinned_buffers(self):
         paths = RuntimePaths(Path("/tmp/h3-test"))
         with patch.dict(os.environ, {}, clear=True):
-            cmd = command(paths, hardware={"shared_memory": True})
-            self.assertIn("--disable-dynamic-vram", cmd)
-            self.assertNotIn("--enable-dynamic-vram", cmd)
+            cmd = command(paths, hardware={"shared_memory": True, "gb10": True})
+            self.assertIn("--enable-dynamic-vram", cmd)
+            self.assertNotIn("--disable-dynamic-vram", cmd)
             self.assertIn("--disable-pinned-memory", cmd)
             self.assertEqual(float(cmd[cmd.index("--reserve-vram") + 1]), 12)
             self.assertNotIn("--highvram", cmd)
@@ -36,6 +37,9 @@ class HardwareTests(unittest.TestCase):
             self.assertIn("--enable-dynamic-vram", discrete)
             self.assertNotIn("--disable-pinned-memory", discrete)
             self.assertEqual(float(discrete[discrete.index("--reserve-vram") + 1]), 1)
+            self.assertEqual(runtime_policy({"shared_memory": True}, {})["memory_mode"], "static")
+            self.assertEqual(runtime_policy({"gb10": True, "shared_memory": True},
+                                           {"H3_MEMORY_MODE": "static"})["memory_mode"], "static")
 
     def test_policy_overrides_and_invalid_values(self):
         self.assertEqual(runtime_policy({"shared_memory": True}, {"H3_MEMORY_MODE": "dynamic", "H3_RESERVE_VRAM": "16.5"}),
@@ -54,6 +58,8 @@ class HardwareTests(unittest.TestCase):
         torch.cuda.get_device_name.return_value = "NVIDIA GB10"
         torch.cuda.get_device_capability.return_value = (12, 1)
         torch.cuda.get_device_properties.return_value = SimpleNamespace(total_memory=119 * GIB, is_integrated=True)
+        torch.cuda.max_memory_allocated.return_value = 0
+        torch.cuda.max_memory_reserved.return_value = 0
         return torch
 
     def run_preflight(self, *, cuda="13.0", reserve="12", ram=125 * GIB, machine="aarch64"):
@@ -76,7 +82,7 @@ class HardwareTests(unittest.TestCase):
         self.assertTrue(report["passed"], report["errors"])
         self.assertTrue(report["gb10"])
         self.assertEqual(report["shared_memory_pool_bytes"], 119 * GIB)
-        self.assertEqual(report["runtime_policy"]["memory_mode"], "static")
+        self.assertEqual(report["runtime_policy"]["memory_mode"], "dynamic")
         self.assertIn("not additive", report["memory_accounting"])
         self.assertFalse(any("5060" in message for message in report["warnings"]))
         self.assertEqual(count, 1)
@@ -123,9 +129,48 @@ class HardwareTests(unittest.TestCase):
             self.assertEqual(report["gpu_total_vram_bytes"], 119 * GIB)
             self.assertEqual(report["gpu_peak_reserved_bytes"], 24 * GIB)
             self.assertEqual(report["system_ram_peak_bytes"], 8 * GIB)
-            self.assertEqual(report["runtime_policy"]["memory_mode"], "static")
+            self.assertEqual(report["runtime_policy"]["memory_mode"], "dynamic")
             self.assertIn("do not add", report["memory_accounting"])
             self.assertEqual(json.loads(monitor.path.read_text()), report)
+
+    def test_stage_is_visible_before_completion_and_nested_stage_restores_parent(self):
+        from h3_pipeline.server_runtime import PerformanceMonitor
+        with tempfile.TemporaryDirectory() as root, \
+             patch.dict("sys.modules", {"torch": self.fake_torch()}), \
+             patch("h3_pipeline.server_runtime.threading.Thread"):
+            monitor = PerformanceMonitor("stages", root, 0)
+            with monitor.stage("conditioning"):
+                self.assertEqual(json.loads(monitor.path.read_text())["current_stage"], "conditioning")
+                with monitor.stage("encoder"):
+                    self.assertEqual(json.loads(monitor.path.read_text())["current_stage"], "encoder")
+                self.assertEqual(json.loads(monitor.path.read_text())["current_stage"], "conditioning")
+            self.assertIsNone(json.loads(monitor.path.read_text())["current_stage"])
+            monitor.finish()
+
+    def test_sampling_progress_preserves_native_callback_and_restores_after_failure(self):
+        from h3_pipeline.server_runtime import sampling_progress
+        latent = object()
+        callback = MagicMock()
+        monitor = SimpleNamespace(data={}, lock=threading.RLock(), flush=MagicMock())
+
+        class Guider:
+            def sample(self, value, *, callback):
+                self.asserted_value = value
+                callback(0, latent, latent, 25)
+                self.progress = dict(monitor.data["sampling_progress"])
+                raise ValueError("sampling failed")
+
+        guider = Guider()
+        with self.assertRaisesRegex(ValueError, "sampling failed"):
+            with sampling_progress(guider, monitor, 25):
+                self.assertEqual(monitor.data["sampling_progress"]["completed_steps"], 0)
+                guider.sample(latent, callback=callback)
+        callback.assert_called_once_with(0, latent, latent, 25)
+        self.assertIs(guider.asserted_value, latent)
+        self.assertEqual(guider.progress["completed_steps"], 1)
+        self.assertEqual(guider.progress["total_steps"], 25)
+        self.assertGreaterEqual(guider.progress["last_step_seconds"], 0)
+        self.assertNotIn("sample", guider.__dict__)
 
 
 if __name__ == "__main__":

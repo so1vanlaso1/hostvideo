@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -44,8 +45,8 @@ class NativeContractTests(unittest.TestCase):
             path.touch()  # Schema validation only; never attempt model loading.
             folder_paths.add_model_folder_path(item["path"].split("/")[0], str(path.parent))
         # Register only the native types used by the official baseline.
-        from comfy_extras import nodes_custom_sampler, nodes_video, nodes_audio
-        for module in (nodes_custom_sampler, nodes_video, nodes_audio):
+        from comfy_extras import nodes_custom_sampler, nodes_video, nodes_audio, nodes_sparse_attention
+        for module in (nodes_custom_sampler, nodes_video, nodes_audio, nodes_sparse_attention):
             extension = asyncio.run(module.comfy_entrypoint())
             for node in asyncio.run(extension.get_node_list()):
                 nodes.NODE_CLASS_MAPPINGS[node.GET_SCHEMA().node_id] = node
@@ -83,6 +84,59 @@ class NativeContractTests(unittest.TestCase):
                                width=1344, height=768, length=73, seed=1, job_id="native-turbo", turbo=True, steps=4)
         valid, error, outputs, node_errors = asyncio.run(execution.validate_prompt("native-turbo", graph, None))
         self.assertTrue(valid, json.dumps({"error": error, "nodes": node_errors}, indent=2))
+
+    def test_accelerated_graph_validates_with_native_sparse_attention(self):
+        import execution
+        graph = build_workflow(prompt="A dancer", images=[], video=None, audio=None,
+            include_video_audio=False, width=608, height=1088, length=107, seed=1,
+            job_id="accelerated-contract", acceleration="balanced")
+        valid, error, _, errors = asyncio.run(execution.validate_prompt("accelerated", graph, None))
+        self.assertTrue(valid, json.dumps({"error": error, "nodes": errors}))
+        job = self.dance_fixture(outfits=1)
+        job.update(acceleration="balanced", anchor_mode="auto")
+        expanded = dance.H3DanceWorkflow().expand(**job)["expand"]
+        valid, error, _, errors = asyncio.run(execution.validate_prompt("accelerated-dance", expanded, None))
+        self.assertTrue(valid, json.dumps({"error": error, "nodes": errors}))
+        self.assertEqual(sum(n["class_type"] == "H3ReferenceToVideo" for n in expanded.values()), 1)
+        self.assertEqual(sum(n["class_type"] == "BlockSparseAttention" for n in expanded.values()), 1)
+        self.assertEqual(sum(n["class_type"] == "H3FirstBlockCache" for n in expanded.values()), 1)
+
+    def test_first_block_cache_composes_existing_patches_and_cleans_up(self):
+        import torch
+        from types import SimpleNamespace
+        from comfy.model_patcher import ModelPatcher
+        from comfy.patcher_extension import CallbacksMP
+        from h3_pipeline.acceleration import H3FirstBlockCache
+        base = torch.nn.Module()
+        base.diffusion_model = torch.nn.Module()
+        base.diffusion_model.blocks = torch.nn.ModuleList([torch.nn.Linear(1, 1) for _ in range(3)])
+        model = ModelPatcher(base, torch.device("cpu"), torch.device("cpu"))
+        prior = []
+        def sparse(args, extra):
+            prior.append(1)
+            return extra["original_block"](args)
+        model.set_model_patch_replace(sparse, "dit", "double_block", 1)
+        patched = H3FirstBlockCache().patch(model, 0.1, 1, 1, 1)[0]
+        hooks = patched.model_options["transformer_options"]["patches_replace"]["dit"]
+        calls = []
+        def original(args):
+            calls.append(1)
+            return {"img": args["img"].add_(1)}
+        def run(sigma):
+            args = {"img": torch.zeros(8, 4), "transformer_options": {
+                "sigmas": torch.tensor([sigma]), "sample_sigmas": torch.linspace(1, 0, 6),
+                "minimax_h3_layout": SimpleNamespace(segments=[(0, 2, "text"), (2, 8, "video")])}}
+            for i in range(3):
+                args["img"] = hooks[("double_block", i)](args, {"original_block": original})["img"]
+            self.assertTrue(torch.equal(args["img"], torch.full((8, 4), 3.)))
+        for sigma in (1., .8, .6, .4, .2):
+            run(sigma)
+        self.assertEqual(len(prior), 3)
+        self.assertEqual(len(calls), 11)
+        for callback in patched.get_all_callbacks(CallbacksMP.ON_CLEANUP):
+            callback(patched)
+        run(.1)  # Cleanup must prevent stale residual reuse on a later run.
+        self.assertEqual(len(prior), 4)
 
     def test_outfit_correct_arbitrary_frame_guides_validate_natively(self):
         import execution
@@ -195,7 +249,7 @@ class NativeContractTests(unittest.TestCase):
         from comfy.text_encoders import llama, qwen_vl
         from h3_pipeline.attention import attention_policy
         from unittest.mock import Mock
-        monitor = SimpleNamespace(data={})
+        monitor = SimpleNamespace(data={}, lock=threading.RLock())
         original = model.optimized_attention, vae.optimized_attention, vae.COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE
         forbidden = Mock(side_effect=AssertionError("Comfy Kitchen/override attention must not run"))
         q = torch.randn(1, 2, 5, 64)
@@ -241,7 +295,7 @@ class NativeContractTests(unittest.TestCase):
                 return torch.device("cuda")
 
         q = torch.randn(1, 2, 5, 64, dtype=torch.float16).as_subclass(DispatchTensor)
-        monitor = SimpleNamespace(data={})
+        monitor = SimpleNamespace(data={}, lock=threading.RLock())
         with patch.object(attn, "SAGE_ATTENTION_IS_AVAILABLE", True), \
              patch.object(attn, "sageattn", side_effect=[q, RuntimeError("synthetic kernel failure")], create=True):
             with attention_policy(monitor, "h3_sampling"):
@@ -320,6 +374,36 @@ class NativeContractTests(unittest.TestCase):
             with runtime.measure_method(encoder, "encode", Monitor(), "qwen"):
                 encoder.encode(1)
         self.assertNotIn("encode", encoder.__dict__)
+
+    def test_sampler_progress_keeps_native_denoised_output(self):
+        import torch
+        from types import SimpleNamespace
+        latent = torch.ones((1, 4, 2, 2))
+        latent_format = SimpleNamespace(latent_channels=4, latent_dimensions=2)
+
+        class Guider:
+            model_patcher = SimpleNamespace(load_device=torch.device("cpu"),
+                get_model_object=lambda name: latent_format,
+                model=SimpleNamespace(latent_format=latent_format, process_latent_out=lambda x: x))
+
+            def sample(self, noise, image, sampler, sigmas, *, callback, **kwargs):
+                callback(0, image * 2, image, 2)
+                callback(1, image * 3, image, 2)
+                return image * 4
+
+        guider = Guider()
+        noise = SimpleNamespace(seed=1, generate_noise=lambda value: torch.zeros_like(value["samples"]))
+        context = custom.H3Begin().begin("sampler-progress", 0)[0]
+        cls = custom.H3Sampler.PREPARE_CLASS_CLONE(None)
+        result = cls.execute(context=context, noise=noise, guider=guider,
+                             sampler=object(), sigmas=torch.tensor([1., .5, 0.]),
+                             latent_image={"samples": latent})
+        report = runtime.finish(context)
+        self.assertTrue(torch.equal(result[0]["samples"], latent * 4))
+        self.assertTrue(torch.equal(result[1]["samples"], latent * 3))
+        self.assertEqual(report["sampling_progress"]["completed_steps"], 2)
+        self.assertEqual(report["sampling_progress"]["total_steps"], 2)
+        self.assertNotIn("sample", guider.__dict__)
 
     def test_native_video_mux_produces_h264_aac(self):
         from fractions import Fraction

@@ -182,7 +182,7 @@ def dance_graph():
     widgets = ["Choose dance video", KEEP_ORIGINAL, KEEP_ORIGINAL, "[]",
                "A realistic full-body dance. Keep the selected character's facial identity while matching the source video's expressions, blinking, mouth movement and head motion in time with the dance.",
                123456789, 0.98, 5.0, "source", DEFAULT_PROFILE, 25, False, 12, "[]", 0.0, 0.0]
-    widgets += [1.0, "auto", "[]", "pose_warn", ""]
+    widgets += [1.0, "auto", "[]", "pose_warn", "", "off"]
     instructions = ("1. Upload/select any dance video.\n"
                     "2. Keep original character/background, or upload/select replacements.\n"
                     "   Character image = facial identity; dance video = expressions, blinking, mouth and head movement.\n"
@@ -228,7 +228,7 @@ def scene_dance_graph(multiple=False):
     widgets = node["widgets_values"]
     settings = widgets[4:13] + (widgets[13:14] if multiple else []) + widgets[14:16]
     settings[0] = "The photographed character dances in the same photographed scene, wearing the supplied outfit. Keep the photograph's facial identity while matching the dance video's expressions, blinking, gaze, mouth movement and head motion at the same moments."
-    options = ([1.0] if multiple else []) + ["auto", "[]", "preview", ""]
+    options = ([1.0] if multiple else []) + ["auto", "[]", "preview", "", "off"]
     node["widgets_values"] = ["Choose character and scene image", "Choose dance video",
                               "[]" if multiple else "Choose outfit image"] + settings + options
     instructions = (

@@ -22,19 +22,25 @@ from .dance_quality import review_section, require_pose, approved, write_review_
 
 VIDEO_SUFFIXES = {".mp4", ".mov", ".webm", ".mkv"}
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
-MODEL_LOADER_TYPES = {"H3UNETLoader", "H3CLIPLoader", "H3VAELoader", "H3LoraLoader"}
+MODEL_LOADER_TYPES = {"H3UNETLoader", "H3CLIPLoader", "H3VAELoader", "H3LoraLoader", "BlockSparseAttention", "H3FirstBlockCache"}
 
 
-def add_section_graph(graph, template, index, shared_models):
+def add_section_graph(graph, template, index, shared_models, conditioning=None):
     """Load one model set per dance job, even with ComfyUI's cache disabled.
 
     The native prompt tracker retains dynamic models until the entire expanded
     prompt ends. Separate loaders per section therefore retain separate copies
     of every checkpoint. Link all sections to the first section's loaders.
+    Anchor/refinement pairs also share their identical native Ref2VA result;
+    its lifetime belongs to the expanded graph, rather than a global cache.
     """
     copied = {}
     reused = set()
     for key, node in template.items():
+        if key == "136" and conditioning is not None:
+            copied[key] = conditioning
+            reused.add(key)
+            continue
         if node["class_type"] in MODEL_LOADER_TYPES:
             if key in shared_models:
                 copied[key] = shared_models[key]
@@ -139,7 +145,8 @@ class H3DanceWorkflow:
             "anchor_mode": (["auto", "supplied", "off"], {"tooltip": "Auto generates outfit-correct endpoints in a first pass, then refines. Supplied uses edited pose-matched images."}),
             "anchor_manifest": ("STRING", {"default": "[]", "multiline": True, "advanced": True, "tooltip": 'JSON: [{"frame":0,"outfit_index":1,"image":"edited.png"}]. Frames refer to the selected normalized source, not generation context.'}),
             "quality_mode": (["pose_warn", "preview", "pose_strict"], {"tooltip": "CPU pose screening is on by default. Strict blocks failed/inconclusive checks; preview needs no pose dependencies."}),
-            "pose_model": ("STRING", {"default": "", "advanced": True, "tooltip": "Server path to a MediaPipe .task file. Empty downloads the verified small model once."})},
+            "pose_model": ("STRING", {"default": "", "advanced": True, "tooltip": "Server path to a MediaPipe .task file. Empty downloads the verified small model once."}),
+            "acceleration": (["off", "balanced"], {"tooltip": "Balanced uses approximate sparse attention and residual caching. Review faces, motion and clothing before final use."})},
             "hidden": {"unique_id": "UNIQUE_ID"}}
     RETURN_TYPES = ("VIDEO", "STRING")
     RETURN_NAMES = ("assembled_video", "output_path")
@@ -167,7 +174,7 @@ class H3DanceWorkflow:
     def expand(self, reference_video, character_image, background_image, outfit_images, prompt, seed,
                megapixels, max_section_seconds, audio_mode, profile, steps, turbo, context_frames=12,
                outfit_durations="[]", start_seconds=0, duration_seconds=0, unique_id=None,
-               transition_seconds=1.0, anchor_mode="auto", anchor_manifest="[]", quality_mode="pose_warn", pose_model=""):
+               transition_seconds=1.0, anchor_mode="auto", anchor_manifest="[]", quality_mode="pose_warn", pose_model="", acceleration="off"):
         if not prompt.strip():
             raise ValueError("Enter a nonempty dance prompt")
         if turbo and steps != 4:
@@ -240,7 +247,7 @@ class H3DanceWorkflow:
                   "transitions": transitions, "assembly_plan": assembly_plan(sections, transitions),
                   "anchor_mode": anchor_mode, "anchor_manifest": supplied, "prompt": prompt,
                   "quality_mode": quality_mode, "pose_model": pose_model,
-                  "transition_seconds": transition_seconds,
+                  "transition_seconds": transition_seconds, "acceleration": acceleration,
                   "assembly": "Exact source timeline; dedicated anchored bridges replace outfit boundaries. Visual review required."}
         report["sections"] = sections + transitions
         write_json(work / "report.json", report)
@@ -274,7 +281,8 @@ class H3DanceWorkflow:
             template = build_workflow(prompt=effective_prompt, images=image_paths,
                 video=str(reference.relative_to(folder_paths.get_input_directory())), audio=None,
                 include_video_audio=paired, width=width, height=height, length=section["generation_frames"],
-                seed=seed, job_id=f"{job_id}-section-{index}", profile=profile, steps=steps, turbo=turbo)
+                seed=seed, job_id=f"{job_id}-section-{index}", profile=profile, steps=steps, turbo=turbo,
+                acceleration=acceleration)
             template["200"] = {"class_type": "H3DanceBeginSection", "inputs": {
                 "job_directory": job_directory, "section_index": index}}
             # The loader's 0.1 MP floor does not upscale a smaller source; retain
@@ -346,7 +354,8 @@ class H3DanceWorkflow:
             write_json(section_dir / "workflow-api.json", template)
             write_json(section_dir / "references.json", [r.dict() for r in mapping])
             (section_dir / "prompt.txt").write_text(effective_prompt + "\n")
-            copied = add_section_graph(graph, template, index, shared_models)
+            reuse = copied_anchor["136"] if section["kind"] == "stable" and anchor_mode == "auto" else None
+            copied = add_section_graph(graph, template, index, shared_models, conditioning=reuse)
             if section["kind"] == "stable" and anchor_mode == "auto":
                 copied["200"].set_input("anchor_pass", copied_anchor["92"].out(0))
             if previous:
@@ -658,7 +667,14 @@ class H3DanceResume:
                 anchor = add_section_graph(graph, prepass, f"{index}_anchor", shared)
                 if previous:
                     anchor["200"].set_input("previous_section", previous)
-                final = add_section_graph(graph, template, index, shared)
+                # Saved workflows can have been edited independently before a resume.
+                same_refs = all(
+                    {k: v for k, v in prepass[key]["inputs"].items() if k != "context"} ==
+                    {k: v for k, v in template[key]["inputs"].items() if k != "context"}
+                    for key in prepass if key == "136" or key in ("119", "120", "128", "310", "311")
+                    or prepass[key]["class_type"] == "H3DanceLoadImage")
+                final = add_section_graph(graph, template, index, shared,
+                                          conditioning=anchor["136"] if same_refs else None)
                 final["200"].set_input("anchor_pass", anchor["92"].out(0))
                 write_json(folder / "anchor-workflow-api.json", prepass)
             else:

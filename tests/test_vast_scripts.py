@@ -130,7 +130,7 @@ elif name in ("python", "python3", "python3.11"):
         elif "from h3_pipeline.attention import metadata" in code:
             sys.exit(0 if (work / "sage-built").exists() else 1)
         elif "shutil.disk_usage" in code and os.environ.get("MOCK_LOW_DISK"):
-            sys.exit("Need at least 75 GiB free for remaining models")
+            sys.exit("Need at least 70 GB free for remaining models")
         elif "shutil.disk_usage" in code:
             pass
         else:
@@ -246,7 +246,7 @@ class VastScriptTests(unittest.TestCase):
     def test_wrong_toolkit_and_insufficient_disk_fail_before_installing(self):
         for extra, message in (({"MOCK_CUDA": "12.7"}, "CUDA 12.8"),
                                ({"MOCK_DRIVER": "570.10"}, "R580"),
-                               ({"MOCK_LOW_DISK": "1"}, "GiB free")):
+                               ({"MOCK_LOW_DISK": "1"}, "GB free")):
             with self.subTest(extra=extra):
                 result = self.run_script("setup.sh", env={**self.env, **extra})
                 self.assertNotEqual(result.returncode, 0)

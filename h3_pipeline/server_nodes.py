@@ -18,6 +18,7 @@ from comfy_extras.nodes_video import SaveVideo
 from . import server_runtime as runtime
 from .media import prepare_image, prepare_video
 from .references import canvas, PromptBuilder, Reference
+from .acceleration import H3FirstBlockCache
 
 
 def schema_for(native, node_id):
@@ -167,7 +168,8 @@ class H3Sampler(SamplerCustomAdvanced):
     def execute(cls, context, **kwargs):
         with runtime.stage(context, "h3_sampling") as monitor:
             monitor.data["steps"] = len(kwargs["sigmas"]) - 1
-            return super().execute(**kwargs)
+            with runtime.sampling_progress(kwargs["guider"], monitor, monitor.data["steps"]):
+                return super().execute(**kwargs)
 
 
 class H3Scheduler(BasicScheduler):
@@ -331,7 +333,7 @@ class H3ReferencePrompt:
 
 NODE_CLASS_MAPPINGS = {cls.__name__: cls for cls in (
     H3Begin, H3RecordSettings, H3UNETLoader, H3CLIPLoader, H3VAELoader, H3LoraLoader,
-    H3VideoDecode, H3LoadReferenceVideo, H3LoadReferenceImage, H3ReferencePrompt)}
+    H3VideoDecode, H3LoadReferenceVideo, H3LoadReferenceImage, H3ReferencePrompt, H3FirstBlockCache)}
 
 
 class H3Extension(ComfyExtension):

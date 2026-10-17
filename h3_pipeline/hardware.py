@@ -33,7 +33,7 @@ def runtime_policy(hardware, environ=None):
     if mode not in {"auto", "dynamic", "static"}:
         raise ValueError("H3_MEMORY_MODE must be auto, dynamic or static")
     if mode == "auto":
-        mode = "static" if shared else "dynamic"
+        mode = "dynamic" if hardware.get("gb10") or not shared else "static"
     reserve = float(environ.get("H3_RESERVE_VRAM", "12" if shared else "1"))
     if not math.isfinite(reserve) or reserve < 0:
         raise ValueError("H3_RESERVE_VRAM must be a finite nonnegative number of GiB")

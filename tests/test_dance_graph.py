@@ -100,6 +100,11 @@ class DanceGraphTests(unittest.TestCase):
                 begin = graph[f"section{index}_200"]["inputs"]
                 self.assertEqual(begin["anchor_pass"], [f"section{index}_anchor_92", 0])
                 self.assertTrue(graph[f"section{index}_126"]["inputs"]["conditioning"][0].startswith(f"section{index}_5"))
+                self.assertNotIn(f"section{index}_136", graph)
+                self.assertEqual(graph[f"section{index}_125"]["inputs"]["latent_image"],
+                                 [f"section{index}_anchor_136", 1])
+                self.assertEqual(graph[f"section{index}_501"]["inputs"]["positive"],
+                                 [f"section{index}_anchor_136", 0])
             bridge = bridges[0]
             index = bridge["index"]
             self.assertIn("previous_section", graph[f"section{index}_200"]["inputs"])
@@ -117,6 +122,9 @@ class DanceGraphTests(unittest.TestCase):
             validate_graph(resumed["expand"])
             self.assertNotIn(f"section{stable[-1]['index']}_200", resumed["expand"])
             self.assertEqual(resumed["expand"]["section1_129"]["inputs"]["noise_seed"], 42)
+            self.assertNotIn("section1_136", resumed["expand"])
+            self.assertEqual(resumed["expand"]["section1_125"]["inputs"]["latent_image"],
+                             ["section1_anchor_136", 1])
             self.assertTrue(list(reports[0].parent.glob("section-1/attempts/*/job-report.json")))
 
     def test_manifest_cannot_escape_input_or_silently_duplicate_guides(self):

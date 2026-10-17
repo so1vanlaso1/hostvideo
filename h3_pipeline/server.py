@@ -38,6 +38,10 @@ def serve(root, port=8188, print_command=False, profile=DEFAULT_PROFILE):
     if actual != COMFY_REVISION:
         raise RuntimeError("ComfyUI revision differs from the validated node contract; rerun setup or explicitly validate the update")
     paths.create()
+    import torch
+    if device_info(torch).get("gb10"):
+        # Large H3 INT8 GEMMs benchmark faster through cuBLAS on GB10.
+        os.environ.setdefault("COMFY_KITCHEN_DISABLE_CUTLASS", "1")
     from .preflight import preflight
     from .config import write_json
     report = preflight(paths.root, profile=profile, kernels=True)

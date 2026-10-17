@@ -13,12 +13,12 @@ builders use the same facial guidance. Reload the workflow after refreshing
 ComfyUI. Facial performance remains prompt-guided and requires visual review;
 body pose scores do not measure it. See [photo dance instructions](docs/photo-dance-workflows.md).
 
-Browser: http://171.227.20.127:15666/ (public, no authentication; current instance)
+Browser: http://113.160.249.72:50020/ (public, no authentication; current instance)
 
-Open the browser URL directly; no login or token is required. ComfyUI is routed through Caddy on external port 10100, with authentication excluded for that port. Anyone with the address can submit GPU jobs. Vast rental charges still apply. This address can change if the instance is recreated. Private alternative from your own computer:
+ComfyUI is routed through Caddy on external port 10100. Open the URL directly without a login or token. `AUTH_EXCLUDE=10100` in `/workspace/.env` keeps this URL public across service/container restarts and setup reruns; setup does not overwrite that file. This address can change if the instance is recreated. Private alternative from your own computer:
 
 ```bash
-ssh -p 15617 -L 8188:127.0.0.1:8188 root@171.227.20.127
+ssh -p 50001 -L 8188:127.0.0.1:8188 root@113.160.249.72
 ```
 
 Then open http://localhost:8188.
@@ -48,6 +48,6 @@ This instance has no persistent host volume. Stop/start preserves the container 
 
 Earlier speed validation: all five checkpoint SHA256 checks, GPU and quantization kernel checks, 19 project tests, and 8 native integration tests passed. The no-reference smoke render produced a 73-frame, 864×480 MP4 with generated audio in 86.8 seconds with no fallback. The test video is `/workspace/minimax-h3/jobs/20261003-162148-4b88bb68a3/generated.mp4`. Reference quality and 15-second memory fit remain unmeasured.
 
-The Python/CLI default is also quality: `int8-encoder`, 0.98 MP, 25 steps, Turbo off, `max` references, and a six-hour timeout. Automatic OOM resolution/reference reductions are disabled. The main diffusion model and video VAE remain INT8 ConvRot; audio VAE remains FP32. Public access persists in `/workspace/.env` via `AUTH_EXCLUDE=10100`; proxy header handling is configured with `CADDY_HEADER_UP_LOCALHOST=8188`.
+The Python/CLI default is also quality: `int8-encoder`, 0.98 MP, 25 steps, Turbo off, `max` references, and a six-hour timeout. Automatic OOM resolution/reference reductions are disabled. The main diffusion model and video VAE remain INT8 ConvRot; audio VAE remains FP32. Proxy header handling is configured in `/workspace/.env` with `CADDY_HEADER_UP_LOCALHOST=8188`; `AUTH_EXCLUDE=10100` disables Caddy authentication for ComfyUI.
 
 Quality validation: the new INT8 encoder SHA256 verification and CUDA quantization kernels passed, along with 21 project tests and 9 native integration tests. A no-reference 22-frame render completed at 1344×768 with 25 base steps, Turbo off, generated audio and no fallback in 155.2 seconds. Report: `/workspace/minimax-h3/jobs/20261003-163828-77cdb88478/report.json`. Five-second reference quality and 15-second memory fit are still unmeasured.

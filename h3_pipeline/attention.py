@@ -52,8 +52,9 @@ def attention_policy(monitor, stage):
 
     def record(backend):
         name = _component.get() or "unknown"
-        counts = calls.setdefault(name, {})
-        counts[backend] = counts.get(backend, 0) + 1
+        with monitor.lock:
+            counts = calls.setdefault(name, {})
+            counts[backend] = counts.get(backend, 0) + 1
 
     def observed(original, backend):
         def call(*args, **kwargs):
@@ -92,6 +93,14 @@ def attention_policy(monitor, stage):
         replace(stack, attn, "attention_pytorch", pytorch)  # Observe Sage fallbacks.
         if hasattr(attn, "sageattn"):
             replace(stack, attn, "sageattn", observed(attn.sageattn, "sage"))
+        if stage == "h3_sampling":
+            sparse = comfy_kitchen.sol_attn_chunked
+
+            def sparse_attention(*args, **kwargs):
+                with component("diffusion"):
+                    return observed(sparse, "sol")(*args, **kwargs)
+
+            replace(stack, comfy_kitchen, "sol_attn_chunked", sparse_attention)
         text_attention = dispatch("text_encoder", False)
         for module in (llama, qwen_vl):
             replace(stack, module, "optimized_attention_for_device", lambda *a, **k: text_attention)

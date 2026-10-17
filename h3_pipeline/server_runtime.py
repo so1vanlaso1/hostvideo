@@ -1,8 +1,10 @@
 """Server-side telemetry and memory policy, imported only inside ComfyUI."""
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 import gc
 import json
+import os
 import re
 import threading
 import time
@@ -23,6 +25,7 @@ class PerformanceMonitor:
         self.started = time.perf_counter()
         self.stop_event = threading.Event()
         self.lock = threading.RLock()
+        self.stages = []
         self.data = {"job_id": job_id, "status": "running", "memory_level": memory_level,
                      "comfy_revision": COMFY_REVISION, "model_revision": MODEL_REVISION,
                      "stages_seconds": {}, "model_activity": [], "system_ram_peak_bytes": 0,
@@ -30,6 +33,7 @@ class PerformanceMonitor:
                      "gpu_peak_allocated_bytes": 0, "gpu_peak_reserved_bytes": 0,
                      "torch_version": torch.__version__, "cuda_version": torch.version.cuda}
         self.data["attention"] = attention_metadata()
+        self.data["int8_gemm_backend"] = "cublas" if os.environ.get("COMFY_KITCHEN_DISABLE_CUTLASS") == "1" else "default"
         if torch.cuda.is_available():
             device = torch.cuda.current_device()
             torch.cuda.reset_peak_memory_stats(device)
@@ -44,8 +48,19 @@ class PerformanceMonitor:
         self.thread.start()
 
     def _poll(self):
+        last_write = time.perf_counter()
         while not self.stop_event.wait(0.25):
             self.snapshot()
+            if time.perf_counter() - last_write >= 5:
+                self.flush()
+                last_write = time.perf_counter()
+
+    def flush(self):
+        with self.lock:
+            self.data.update(current_stage=self.stages[-1] if self.stages else None,
+                             elapsed_seconds=time.perf_counter() - self.started,
+                             updated_at=datetime.now(timezone.utc).isoformat())
+            write_json(self.path, self.data)
 
     def snapshot(self):
         with self.lock:
@@ -66,6 +81,9 @@ class PerformanceMonitor:
     @contextmanager
     def stage(self, name):
         started = time.perf_counter()
+        with self.lock:
+            self.stages.append(name)
+            self.flush()
         try:
             yield
             # Synchronize only at meaningful stage boundaries for accurate CUDA timing.
@@ -78,8 +96,9 @@ class PerformanceMonitor:
             with self.lock:
                 stages = self.data["stages_seconds"]
                 stages[name] = stages.get(name, 0) + time.perf_counter() - started
+                self.stages.pop()
             self.snapshot()
-            write_json(self.path, self.data)
+            self.flush()
 
     def finish(self, status="completed"):
         self.stop_event.set()
@@ -90,7 +109,7 @@ class PerformanceMonitor:
         duration = self.data.get("actual_duration")
         if duration:
             self.data["compute_seconds_per_output_second"] = self.data["total_wall_seconds"] / duration
-        write_json(self.path, self.data)
+        self.flush()
         return dict(self.data)
 
 
@@ -270,3 +289,67 @@ def measure_method(obj, name, monitor, label):
             setattr(obj, name, previous)
         else:
             delattr(obj, name)
+
+
+@contextmanager
+def sampling_progress(guider, monitor, steps):
+    """Observe native step callbacks without retaining latents or synchronizing CUDA."""
+    original = guider.sample
+    had_instance_value = "sample" in guider.__dict__
+    previous = guider.__dict__.get("sample")
+    started = last_step = time.perf_counter()
+    profiler = None
+    if os.environ.get("H3_PROFILE_SAMPLING") == "1":
+        import torch
+        profiler = torch.profiler.profile(activities=[torch.profiler.ProfilerActivity.CPU,
+                                                    torch.profiler.ProfilerActivity.CUDA],
+                                          record_shapes=True)
+        profiler.start()
+
+    def finish_profile():
+        nonlocal profiler
+        if profiler is None:
+            return
+        active, profiler = profiler, None
+        active.stop()
+        events = sorted(active.key_averages(group_by_input_shape=True),
+                        key=lambda event: event.device_time_total, reverse=True)
+        report = [{"operation": event.key, "calls": event.count,
+                   "cuda_ms": event.device_time_total / 1000,
+                   "cpu_ms": event.cpu_time_total / 1000,
+                   "input_shapes": event.input_shapes} for event in events[:80]]
+        write_json(monitor.path.parent / "sampling-profile.json", report)
+        active.export_chrome_trace(str(monitor.path.parent / "sampling-trace.json"))
+        monitor.data["sampling_profile"] = "sampling-profile.json"
+    with monitor.lock:
+        monitor.data["sampling_progress"] = {"completed_steps": 0, "total_steps": steps}
+        monitor.flush()
+
+    def sample(*args, **kwargs):
+        callback = kwargs.get("callback")
+
+        def observed(step, x0, x, total_steps):
+            nonlocal last_step
+            finish_profile()
+            if callback is not None:
+                callback(step, x0, x, total_steps)
+            now = time.perf_counter()
+            with monitor.lock:
+                monitor.data["sampling_progress"] = {
+                    "completed_steps": step + 1, "total_steps": total_steps,
+                    "elapsed_seconds": now - started, "last_step_seconds": now - last_step}
+                monitor.flush()
+            last_step = now
+
+        kwargs["callback"] = observed
+        return original(*args, **kwargs)
+
+    guider.sample = sample
+    try:
+        yield
+    finally:
+        finish_profile()
+        if had_instance_value:
+            guider.sample = previous
+        else:
+            delattr(guider, "sample")

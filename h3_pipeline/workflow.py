@@ -30,7 +30,7 @@ def add_frame_guides(graph, guides):
 
 def build_workflow(*, prompt, images, video, audio, include_video_audio, width, height, length,
                    seed, job_id, memory_level=0, ref_image_size="max", profile=DEFAULT_PROFILE,
-                   scheduler="simple", steps=25, turbo=False):
+                   scheduler="simple", steps=25, turbo=False, acceleration="off"):
     if scheduler not in ("simple", "beta", "normal"):
         raise ValueError("scheduler must be simple, beta or normal")
     if not isinstance(turbo, bool):
@@ -54,6 +54,18 @@ def build_workflow(*, prompt, images, video, audio, include_video_audio, width, 
         graph.pop("145", None)
     for node in ("124", "126"):
         graph[node]["inputs"]["model"] = ["145" if turbo else "127", 0]
+    if acceleration not in ("off", "balanced"):
+        raise ValueError("acceleration must be off or balanced")
+    if acceleration == "balanced":
+        graph["146"] = {"class_type": "BlockSparseAttention", "inputs": {
+            "model": ["145" if turbo else "127", 0], "selection": {"selection": "sol-attn", "tau": 1.3},
+            "start_percent": 0.1, "end_percent": 0.95, "dense_blocks": "0,49", "min_tokens": 12288,
+            "extra_tokens": 256, "sink_conditioning": "exact_kv_and_rows", "verbose": True}}
+        graph["147"] = {"class_type": "H3FirstBlockCache", "inputs": {
+            "model": ["146", 0], "threshold": 0.12, "start_step": 2,
+            "end_dense_steps": 2, "max_consecutive_skips": 2}}
+        for node in ("124", "126"):
+            graph[node]["inputs"]["model"] = ["147", 0]
     graph["129"]["inputs"]["noise_seed"] = seed
     conditioning = graph["136"]["inputs"]
     conditioning.update(prompt=prompt, width=width, height=height, length=length, ref_image_size=ref_image_size)
