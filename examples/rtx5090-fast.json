@@ -1,0 +1,20 @@
+{
+  "prompt": "A realistic full-body dancer in a softly lit studio, natural motion, consistent appearance, synchronized music.",
+  "reference_video": null,
+  "character_images": [],
+  "clothing_images": [],
+  "additional_reference_images": [],
+  "reference_audio": null,
+  "duration": 5,
+  "megapixels": 0.98,
+  "seed": 123456789,
+  "aspect_ratio": "16:9",
+  "ref_image_size": "max",
+  "include_video_audio": true,
+  "reference_video_start": 0,
+  "scheduler": "beta",
+  "oom_fallback": false,
+  "timeout": 21600,
+  "steps": 4,
+  "turbo": true
+}
