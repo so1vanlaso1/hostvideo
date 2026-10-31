@@ -93,23 +93,6 @@ flock -n 8 || { echo 'Stop ComfyUI before updating: bash scripts/vast.sh stop (o
 exec > >(tee -a "$H3_ROOT/logs/setup.log" 8>&- 9>&-) 2>&1
 trap 'echo "Setup failed at line $LINENO. See $H3_ROOT/logs/setup.log; fix the reported error and rerun bash setup.sh." >&2' ERR
 echo "Runtime: $H3_ROOT | profile: $PROFILE | port: $H3_PORT"
-# Fail before large dependency downloads when storage cannot hold the selected models.
-if [[ "$DOWNLOAD" == true ]]; then
-  python3 - "$SOURCE_DIR" "$H3_ROOT" "$PROFILE" <<'PY'
-import shutil
-import sys
-from pathlib import Path
-sys.path.insert(0, sys.argv[1])
-from h3_pipeline.config import model_files
-root = Path(sys.argv[2])
-remaining = sum(item["size"] for item in model_files(sys.argv[3]).values()
-                if not (root / "models" / item["path"]).exists())
-required = remaining + 25 * 1024**3
-if shutil.disk_usage(root).free < required:
-    raise SystemExit(f"Need at least {required / 1024**3:.1f} GiB free for remaining models, dependencies and outputs; choose a larger disk or --root.")
-PY
-fi
-
 echo '[2/6] Preparing pinned ComfyUI and Python 3.11.'
 if [[ ! -d "$H3_ROOT/ComfyUI/.git" ]]; then
   [[ ! -e "$H3_ROOT/ComfyUI" ]] || { echo 'An unmanaged ComfyUI directory already exists; inspect it before continuing.' >&2; exit 1; }
