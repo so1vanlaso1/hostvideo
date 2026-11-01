@@ -67,6 +67,44 @@ def load_nodes(input_root, output_root):
 
 
 class DanceGraphTests(unittest.TestCase):
+    def test_photo_dance_keeps_photographed_outfit_in_every_section(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, output = root / "input", root / "output"
+            source.mkdir(); output.mkdir()
+            (source / "dance.mp4").write_bytes(b"fixture")
+            Image.new("RGB", (128, 96)).save(source / "photo.png")
+            nodes = load_nodes(source, output)
+            cls = nodes.H3PhotoDance
+            schema = cls.INPUT_TYPES()
+            preset = json.loads((ASSETS / "workflows/dance_photo_ui.json").read_text())["nodes"][0]
+            fields = list(schema["required"]) + list(schema["optional"])
+            self.assertEqual(len(fields), len(preset["widgets_values"]))
+            settings = dict(zip(fields, preset["widgets_values"]))
+            settings.update(reference_image="photo.png", reference_video="dance.mp4")
+            self.assertNotIn("outfit_image", settings)
+            self.assertNotIn("outfit_images", settings)
+            self.assertNotIn("transition_seconds", settings)
+            self.assertIs(cls.VALIDATE_INPUTS("photo.png", "dance.mp4"), True)
+            self.assertIsNot(cls.VALIDATE_INPUTS("missing.png", "dance.mp4"), True)
+            metadata = {"streams": [{"codec_type": "video", "width": 128, "height": 96, "nb_frames": "240"}]}
+            with patch.object(nodes, "probe", return_value=metadata), patch.object(nodes, "normalize_dance_video", return_value=metadata), \
+                 patch.object(nodes, "slice_dance_video"), patch.object(nodes, "extract_frame", return_value="photo.png"):
+                graph = cls().expand(**settings)["expand"]
+            validate_graph(graph)
+            report = json.loads(next(output.rglob("report.json")).read_text())
+            self.assertTrue(report["photo_outfit"])
+            self.assertGreater(len(report["sections"]), 1)
+            self.assertTrue(all(s["kind"] == "stable" for s in report["sections"]))
+            for record in (n["inputs"] for n in graph.values() if n["class_type"] == "H3RecordSettings"):
+                refs = json.loads(record["reference_mapping"])
+                self.assertEqual(len({r["path"] for r in refs[:3]}), 1)
+                self.assertTrue(refs[0]["path"].endswith("photo.png"))
+                self.assertIn("No clothing changes or transformations", record["prompt"])
+                self.assertIn("Keep the camera fixed", record["prompt"])
+                self.assertNotIn("Replace only their clothing", record["prompt"])
+                self.assertNotIn("Keep the original dancer's clothing", record["prompt"])
+
     def test_auto_refinement_and_bridges_have_real_dependency_gates(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

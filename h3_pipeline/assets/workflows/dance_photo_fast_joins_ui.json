@@ -1,0 +1,98 @@
+{
+  "id": "10bcd7d2-0fdf-40df-be3d-14aced889acb",
+  "revision": 1,
+  "last_node_id": 2,
+  "last_link_id": 0,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "H3PhotoDanceFast",
+      "pos": [
+        80,
+        80
+      ],
+      "size": [
+        700,
+        1500
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "assembled_video",
+          "type": "VIDEO",
+          "links": null,
+          "slot_index": 0
+        },
+        {
+          "name": "output_path",
+          "type": "STRING",
+          "links": null,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "H3PhotoDanceFast"
+      },
+      "widgets_values": [
+        "Choose character and scene image",
+        "Choose dance video",
+        "Animate the photographed character dancing in their own scene. Preserve their existing outfit throughout. Follow the sample video's dance and expressions.",
+        123456789,
+        0.98,
+        5.0,
+        "source",
+        "int8-encoder",
+        25,
+        false,
+        12,
+        0.0,
+        0.0,
+        "boundary",
+        "[]",
+        "preview",
+        ""
+      ],
+      "title": "Fast joins: Photo + Dance (Keep Clothes and Scene)"
+    },
+    {
+      "id": 2,
+      "type": "Note",
+      "pos": [
+        840,
+        80
+      ],
+      "size": [
+        490,
+        620
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "FASTER ALTERNATIVE: one full-quality pass per section, then short endpoint-anchored bridges at every join. Same steps and resolution. Review identity, clothing and joins. Original workflows are unchanged. New nodes require ComfyUI restart after the running job finishes."
+      ]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.75,
+      "offset": [
+        0,
+        0
+      ]
+    },
+    "h3_pipeline": {
+      "instructions": "1. Upload a full-body character photo with the desired clothes already on, in the desired background.\n2. Upload a sample dance video.\n3. Queue once. No separate clothing or background image is needed.\n\nThe photo supplies identity, the complete existing outfit, background, lighting and viewpoint for every section. The video supplies dance movement, expressions and timing. Clothing changes are disabled. Source audio is retained when present. Start with a short duration_seconds excerpt. Results and side-by-side review.mp4 appear under output/h3/dance/. This is generative animation: review clothing, identity, motion and background consistency after rendering."
+    }
+  },
+  "version": 0.4
+}

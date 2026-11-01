@@ -259,6 +259,31 @@ def scene_dance_graph(multiple=False):
     return graph
 
 
+def photo_dance_graph():
+    graph = scene_dance_graph()
+    graph["id"] = "e4d1b8c0-91f1-4819-9174-12cfb7b9c368"
+    graph["revision"] = 1
+    node, note = graph["nodes"]
+    node["type"] = "H3PhotoDance"
+    node["title"] = "Photo + Dance (Keep Clothes and Scene)"
+    node["properties"]["Node name for S&R"] = "H3PhotoDance"
+    del node["widgets_values"][2]  # No separate outfit upload.
+    node["widgets_values"][2] = (
+        "Animate the photographed character dancing in their own scene. Preserve their existing outfit "
+        "throughout. Follow the sample video's dance and expressions.")
+    instructions = (
+        "1. Upload a full-body character photo with the desired clothes already on, in the desired background.\n"
+        "2. Upload a sample dance video.\n3. Queue once. No separate clothing or background image is needed.\n\n"
+        "The photo supplies identity, the complete existing outfit, background, lighting and viewpoint for every section. "
+        "The video supplies dance movement, expressions and timing. Clothing changes are disabled. "
+        "Source audio is retained when present. Start with a short duration_seconds excerpt. "
+        "Results and side-by-side review.mp4 appear under output/h3/dance/. "
+        "This is generative animation: review clothing, identity, motion and background consistency after rendering.")
+    note["widgets_values"] = [instructions]
+    graph["extra"]["h3_pipeline"]["instructions"] = instructions
+    return graph
+
+
 if __name__ == "__main__":
     write_json(ASSETS / "workflows" / "ref2va_api.json", api_graph())
     write_json(ASSETS / "workflows" / "ref2va_16gb_ui.json", ui_graph())
@@ -266,4 +291,5 @@ if __name__ == "__main__":
     write_json(ASSETS / "workflows" / "dance_general_ui.json", dance_graph())
     write_json(ASSETS / "workflows" / "dance_scene_single_outfit_ui.json", scene_dance_graph())
     write_json(ASSETS / "workflows" / "dance_scene_multiple_outfits_ui.json", scene_dance_graph(multiple=True))
+    write_json(ASSETS / "workflows" / "dance_photo_ui.json", photo_dance_graph())
     print("Built API and UI workflows from the pinned official template")

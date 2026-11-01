@@ -25,8 +25,9 @@ async function upload(file) {
 app.registerExtension({
     name: "hostvideo.generalDance",
     async beforeRegisterNodeDef(nodeType, nodeData) {
-        if (!["H3DanceWorkflow", "H3SceneDanceSingleOutfit", "H3SceneDanceMultipleOutfits"].includes(nodeData.name)) return;
+        if (!["H3DanceWorkflow", "H3PhotoDance", "H3SceneDanceSingleOutfit", "H3SceneDanceMultipleOutfits"].includes(nodeData.name)) return;
         const scene = nodeData.name !== "H3DanceWorkflow";
+        const photo = nodeData.name === "H3PhotoDance";
         const single = nodeData.name === "H3SceneDanceSingleOutfit";
         const imageField = scene ? "reference_image" : "character_image";
         const selections = scene ? ["reference_image", "reference_video", ...(single ? ["outfit_image"] : [])]
@@ -37,7 +38,7 @@ app.registerExtension({
             const node = this;
             const widget = name => node.widgets.find(w => w.name === name);
             let imageFiles = nodeData.input.required[imageField][0].slice(1);
-            const existing = single ? null : node.addWidget("combo", "Existing outfit", imageFiles[0] || "No uploaded images",
+            const existing = (single || photo) ? null : node.addWidget("combo", "Existing outfit", imageFiles[0] || "No uploaded images",
                 () => {}, { values: imageFiles.length ? imageFiles : ["No uploaded images"], serialize: false });
             if (existing) existing.serialize = false;
             const button = (name, callback) => {
@@ -87,7 +88,7 @@ app.registerExtension({
             }
             if (single) {
                 button("3. Upload outfit image", () => chooseFiles("image/*", false, names => widget("outfit_image").value = names[0]));
-            } else {
+            } else if (!photo) {
                 const addOutfits = names => widget("outfit_images").value = JSON.stringify([...outfitList(widget("outfit_images")), ...names], null, 2);
                 button(scene ? "3. Add outfit images (multiple)" : "Add outfit images (multiple)", () => chooseFiles("image/*", true, addOutfits));
                 button("Add selected existing outfit", () => {

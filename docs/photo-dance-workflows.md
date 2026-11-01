@@ -1,5 +1,15 @@
 # Photo, dance video and clothes
 
+For a **character already wearing the desired clothes in the desired scene**, use
+`dance_photo_ui.json` (**Photo + Dance (Keep Clothes and Scene)**). Upload the
+full-body character photo and sample dance video, then queue. No separate outfit
+or background upload is needed. The same photo supplies character identity,
+existing clothing, background, lighting and viewpoint in every section; the video
+supplies movement, expressions and timing. Clothing changes are disabled. Start
+with a short `duration_seconds` excerpt and review the generated `review.mp4` for
+appearance and motion consistency. Source audio is retained when present.
+
+
 Two ComfyUI presets are in `h3_pipeline/assets/workflows/` and exported by
 `h3 export-workflows --directory PATH`:
 

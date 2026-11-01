@@ -125,3 +125,27 @@ for (const single of [true, false]) {
 }
 assert.deepEqual(alerts, []);
 console.log("Scene workflow upload controls passed: shared photo, motion video, single-outfit replacement, multiple-outfit ordering.");
+
+class PhotoNode extends Node {
+    onNodeCreated() {}
+    constructor() {
+        super();
+        this.widgets = ["reference_image", "reference_video"].map(name => ({ name, value: "", options: {} }));
+    }
+}
+await extension.beforeRegisterNodeDef(PhotoNode, { name: "H3PhotoDance", input: { required: schema("H3PhotoDance") } });
+const photo = new PhotoNode();
+photo.onNodeCreated();
+for (const [label, field, filename] of [
+    ["1. Upload character and scene image", "reference_image", "dressed-person.png"],
+    ["2. Upload dance video", "reference_video", "sample.mp4"],
+]) {
+    selectedFiles = [{ name: filename }];
+    await photo.widgets.find(w => w.name === label).callback();
+    await pickerDone; pickerDone = null;
+    assert.equal(photo.widgets.find(w => w.name === field).value, `dance-assets/${filename}`);
+}
+assert.equal(photo.widgets.filter(w => w.serialize !== false).length, 2);
+assert.ok(!photo.widgets.some(w => /outfit/i.test(w.name)));
+assert.deepEqual(alerts, []);
+console.log("Photo dance controls passed: photo and motion uploads only.");

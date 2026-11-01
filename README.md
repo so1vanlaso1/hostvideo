@@ -1,5 +1,15 @@
 # MiniMax H3 Ref2VA — Vast.ai / RTX 5060 Ti 16 GB
 
+For a **character already wearing the desired clothes in the desired scene**, use
+`dance_photo_ui.json` (**Photo + Dance (Keep Clothes and Scene)**). Upload the
+full-body character photo and sample dance video, then queue. No separate outfit
+or background upload is needed. The same photo supplies character identity,
+existing clothing, background, lighting and viewpoint in every section; the video
+supplies movement, expressions and timing. Clothing changes are disabled. Start
+with a short `duration_seconds` excerpt and review the generated `review.mp4` for
+appearance and motion consistency. Source audio is retained when present.
+
+
 This implementation generates reference-driven clips with native audio using Comfy-Org checkpoints and CPU offloading. Quality defaults supersede the original speed settings in `guide.txt`: native 1344×768 output, 25 base sampling steps, Turbo disabled, INT8 Qwen3-VL encoder, and `max` image references. It provides ComfyUI browser workflows and a Python/CLI client. **The 15-second fit and reference quality must be measured on your Vast GPU.** Local tests do not establish visual quality.
 
 ## 1. Clone and run one script on Vast
