@@ -10,120 +10,159 @@ from .config import ASSETS, DEFAULT_PROFILE, PROFILES, RuntimePaths, write_json
 
 def parser():
     p = argparse.ArgumentParser(prog="h3", description="MiniMax H3 native Ref2VA, one 16 GB GPU")
-    p.add_argument("--root", default=str(RuntimePaths.defa…21747 tokens truncated…total_frames) > 1.01:
-            raise ValueError("Outfit durations must add up to the full reference video duration (within one frame)")
-        boundaries, elapsed = [0], 0
-        for duration in outfit_durations:
-            elapsed += duration
-            boundaries.append(round(elapsed * FPS))
-        boundaries[-1] = total_frames
+    p.add_argument("--root", default=str(RuntimePaths.default().root), help="Persistent runtime root (or H3_ROOT)")
+    sub = p.add_subparsers(dest="command", required=True)
+    pre = sub.add_parser("preflight", help="Check RAM, GPU, CUDA and optional quantization/SageAttention kernels")
+    pre.add_argument("--profile", choices=PROFILES, default=DEFAULT_PROFILE)
+    pre.add_argument("--kernels", action="store_true")
+    pre.add_argument("--local", action="store_true", help="Allow a CPU development machine")
+    pre.add_argument("--output", type=Path)
+    download = sub.add_parser("download-models", help="Download and verify only the selected five checkpoints")
+    download.add_argument("--profile", choices=PROFILES, default=DEFAULT_PROFILE)
+    download.add_argument("--verify-existing", action="store_true")
+    start = sub.add_parser("serve", help="Start private ComfyUI with the 16 GB memory profile")
+    start.add_argument("--port", type=int, default=8188)
+    start.add_argument("--profile", choices=PROFILES, default=os.environ.get("H3_PROFILE", DEFAULT_PROFILE))
+    start.add_argument("--print-command", action="store_true")
+    for name in ("generate", "benchmark"):
+        job = sub.add_parser(name)
+        job.add_argument("--job", required=True, type=Path, help="JSON job; asset paths are relative to this file")
+        job.add_argument("--server", default=os.environ.get("H3_SERVER_URL", "http://127.0.0.1:8188"))
+        job.add_argument("--profile", choices=PROFILES, default=os.environ.get("H3_PROFILE", DEFAULT_PROFILE))
+        if name == "benchmark":
+            job.add_argument("--stage", choices=("smoke", "five-second", "target", "identity-motion", "clothing", "resolution"), default="smoke")
+            job.add_argument("--megapixels", type=float, help="Required for optional resolution stage: 0.7, 0.8, 0.98")
+    export = sub.add_parser("export-workflows", help="Copy the browser and API workflow files")
+    export.add_argument("--directory", required=True, type=Path)
+    quality = sub.add_parser("dance-quality-setup", help="Download the small CPU pose-check model (no video-generation weights)")
+    quality.add_argument("--directory", required=True, type=Path)
+    review = sub.add_parser("dance-review", help="Inspect a local/server dance report and record explicit visual approvals")
+    review.add_argument("--report", required=True, type=Path)
+    review.add_argument("--approve", nargs="+", type=int)
+    review.add_argument("--note", default="")
+    resume = sub.add_parser("dance-resume", help="Rerender selected server sections, or assemble reviewed sections")
+    resume.add_argument("--job-directory", required=True, help="Server-relative output/h3/dance path, e.g. h3/dance/dance-...")
+    resume.add_argument("--sections", nargs="*", type=int, default=[])
+    resume.add_argument("--seed", type=int, default=-1)
+    resume.add_argument("--server", default=os.environ.get("H3_SERVER_URL", "http://127.0.0.1:8188"))
+    resume.add_argument("--timeout", type=int, default=21600)
+    wan = sub.add_parser("dance-wan", help="Run a pose-controlled comparison in a separate installed Wan-Animate environment")
+    wan.add_argument("--job", required=True, type=Path)
+    wan.add_argument("--plan-only", action="store_true")
+    return p
+
+
+def read_job(path):
+    job = json.loads(path.read_text())
+    allowed = {"prompt", "reference_video", "character_images", "clothing_images", "additional_reference_images", "reference_audio",
+               "duration", "megapixels", "seed", "aspect_ratio", "ref_image_size", "include_video_audio", "reference_video_start", "scheduler", "steps", "turbo", "oom_fallback", "timeout"}
+    unknown = job.keys() - allowed
+    if unknown:
+        raise ValueError(f"Unknown job options: {sorted(unknown)}")
+    for field in ("reference_video", "reference_audio"):
+        if job.get(field):
+            job[field] = str((path.parent / Path(job[field]).expanduser()).resolve())
+    for field in ("character_images", "clothing_images", "additional_reference_images"):
+        if job.get(field) is not None:
+            if not isinstance(job[field], list):
+                raise ValueError(f"{field} must be a list")
+            job[field] = [str((path.parent / Path(p).expanduser()).resolve()) for p in job[field]]
+    return job
+
+
+def benchmark_job(job, stage, megapixels=None):
+    job = dict(job)
+    job["oom_fallback"] = False  # A failed requested size must not count as a passing benchmark.
+    job.setdefault("steps", 25)
+    job.setdefault("turbo", False)
+    if stage == "smoke":
+        job.update(duration=3.0, megapixels=0.98)
+    elif stage == "five-second":
+        job.update(duration=5.0, megapixels=0.98)
     else:
-        boundaries = [i * total_frames // count for i in range(count + 1)]
-    if any(b <= a for a, b in zip(boundaries, boundaries[1:])):
-        raise ValueError("Each outfit must have at least one frame on the timeline")
-    # Round DOWN to the native grid before budgeting context. No generation
-    # window, including context and padding, may exceed the requested ceiling.
-    frame_budget = min(math.floor(max_section_seconds * FPS), MAX_FRAMES)
-    max_generation = frame_budget - (frame_budget - 5) % 17
-    max_core = max_generation - 2 * context_frames
-    if max_generation < 5 or max_core < 1:
-        raise ValueError("max_section_seconds is too short for the requested context_frames and H3's five-frame minimum")
-    sections = []
-    for outfit_index, (start, end) in enumerate(zip(boundaries, boundaries[1:])):
-        chunks = math.ceil((end - start) / max_core)
-        for chunk in range(chunks):
-            core_start = start + chunk * (end - start) // chunks
-            core_end = start + (chunk + 1) * (end - start) // chunks
-            needed = max(5, core_end - core_start + 2 * context_frames)
-            length = needed + (5 - needed % 17) % 17
-            reference_start = min(max(0, core_start - context_frames), max(0, total_frames - length))
-            sections.append({"index": len(sections) + 1, "outfit_index": outfit_index + 1,
-                             "outfit_image": outfits[outfit_index] if outfits else None,
-                             "start_frame": core_start, "end_frame": core_end,
-                             "keep_frames": core_end - core_start,
-                             "reference_start_frame": reference_start, "generation_frames": length,
-                             "generation_seconds": length / FPS,
-                             "trim_start_frame": core_start - reference_start,
-                             "padding_frames": max(0, reference_start + length - total_frames)})
-    return sections
+        job.update(duration=15.0, megapixels=0.98)
+    if stage in ("smoke", "five-second", "target"):
+        for field in ("reference_video", "reference_audio", "character_images", "clothing_images", "additional_reference_images"):
+            job.pop(field, None)
+        job["prompt"] = "A full-body dancer performs a simple dance in a studio. Natural motion, soft lighting and synchronized rhythmic music."
+    if stage == "identity-motion":
+        job.pop("clothing_images", None)
+        if not job.get("reference_video") or not job.get("character_images"):
+            raise ValueError("identity-motion benchmark requires a character image and reference video")
+    if stage in ("clothing", "resolution"):
+        if not all(job.get(k) for k in ("reference_video", "character_images", "clothing_images")):
+            raise ValueError("This benchmark requires dance video, character image and clothing image")
+    if stage == "resolution":
+        if megapixels not in (0.7, 0.8, 0.98):
+            raise ValueError("Choose --megapixels 0.7, 0.8 or 0.98; test each separately")
+        job["megapixels"] = megapixels
+    return job
 
 
-def section_references(anchor, character, background, outfit, previous_frame=None, from_outfit=None):
-    images = []
-    def add(path, role):
-        images.append(Reference(f"<Picture {len(images) + 1}>", role, str(path)))
-    add(character or anchor, "replacement character identity" if character else "original dancer identity from the source video")
-    add(background or anchor, "replacement background scene only" if background else "original background scene only")
-    if outfit:
-        add(outfit, "clothing design only; ignore the clothing model's identity and background")
-    if from_outfit:
-        add(from_outfit, "opening outfit clothing design only; ignore the clothing model's identity and background")
-    if previous_frame:
-        add(previous_frame, "appearance continuity from the preceding generated section; ignore its outfit and pose")
-    return images
+def main(argv=None):
+    args = parser().parse_args(argv)
+    try:
+        if args.command == "preflight":
+            from .preflight import preflight
+            report = preflight(args.root, args.profile, args.kernels, not args.local)
+            if args.output:
+                write_json(args.output, report)
+            print(json.dumps(report, indent=2))
+            return 0 if report["passed"] else 1
+        if args.command == "download-models":
+            from .models import ModelManager
+            print(json.dumps(ModelManager(Path(args.root) / "models", args.profile).download(verify_existing=args.verify_existing), indent=2))
+        elif args.command == "serve":
+            from .server import serve
+            result = serve(args.root, args.port, args.print_command, args.profile)
+            if result:
+                print(result)
+        elif args.command == "export-workflows":
+            import shutil
+            args.directory.mkdir(parents=True, exist_ok=True)
+            for name in ("ref2va_16gb_ui.json", "ref2va_api.json", "ref2va_quality_5s_098mp.json", "dance_general_ui.json",
+                         "dance_scene_single_outfit_ui.json", "dance_scene_multiple_outfits_ui.json", "dance_photo_ui.json"):
+                shutil.copy2(ASSETS / "workflows" / name, args.directory / name)
+            print(args.directory.resolve())
+        elif args.command == "dance-quality-setup":
+            from .dance_quality import download_pose_model, require_pose
+            model = download_pose_model(args.directory / "pose_landmarker_lite.task")
+            require_pose(model["path"])
+            write_json(args.directory / "pose-model.json", model)
+            print(json.dumps(model, indent=2))
+        elif args.command == "dance-review":
+            from .dance_resume import approve_sections
+            report = approve_sections(args.report, args.approve, args.note) if args.approve else json.loads(args.report.read_text())
+            print(json.dumps({"status": report["status"], "quality_status": report.get("quality_status"),
+                "sections": [{"index": s["index"], "kind": s.get("kind", "stable"), "status": s.get("status"),
+                              "quality": s.get("quality"), "approval": s.get("approval")} for s in report["sections"]]}, indent=2))
+        elif args.command == "dance-resume":
+            from .client import ComfyClient
+            client = ComfyClient(args.server, os.environ.get("H3_HTTP_USERNAME"), os.environ.get("H3_HTTP_PASSWORD"))
+            info = client.check()
+            if "H3DanceResume" not in info:
+                raise RuntimeError("Restart ComfyUI after updating the dance custom nodes")
+            graph = {"1": {"class_type": "H3DanceResume", "inputs": {
+                "job_directory": args.job_directory, "sections": json.dumps(args.sections), "seed": args.seed}}}
+            print(json.dumps(client.execute(graph, timeout=args.timeout, progress=lambda s: print(s, file=sys.stderr, flush=True)), indent=2))
+        elif args.command == "dance-wan":
+            from .wan_dance import run_wan_job
+            print(json.dumps(run_wan_job(args.job, plan_only=args.plan_only), indent=2))
+        elif args.command in ("generate", "benchmark"):
+            from .pipeline import MiniMaxH3Pipeline
+            job = read_job(args.job.resolve())
+            if args.command == "benchmark":
+                job = benchmark_job(job, args.stage, args.megapixels)
+            pipeline = MiniMaxH3Pipeline(args.server, args.root, args.profile,
+                                        os.environ.get("H3_HTTP_USERNAME"), os.environ.get("H3_HTTP_PASSWORD"),
+                                        progress=lambda message: print(message, file=sys.stderr, flush=True))
+            result = pipeline.generate(**job)
+            print(json.dumps(asdict(result), indent=2))
+        return 0
+    except (Exception, KeyboardInterrupt) as exc:
+        print(f"h3: {exc}", file=sys.stderr)
+        return 1
 
 
-def dance_prompt(prompt, images, paired_audio, replace_character, replace_background, has_outfit, reference_video="reference.mp4", transition=None,
-                 reference_scene=False, photo_outfit=False):
-    refs = list(images)
-    if paired_audio:
-        refs.append(Reference("<Audio 1>", "source dance soundtrack paired with <Video 1>", str(reference_video)))
-    refs.append(Reference("<Video 1>", "the exact chronological dance excerpt, including body choreography, facial performance and head movement for this section", str(reference_video)))
-    character = ("Replace the original dancer with the person in <Picture 1>. Do not borrow the original dancer's face or hair."
-                 if replace_character else "Keep the original dancer from <Video 1> and <Picture 1>, including face, hair, skin tone and body proportions.")
-    background = ("Replace the source background with the scene in <Picture 2>; ignore any people in this scene reference."
-                  if replace_background else "Keep the original room, background objects, lighting and camera framing from <Video 1> and <Picture 2>.")
-    clothing = ("Wear the complete outfit from <Picture 3> throughout this section, from first to last frame. Transfer only its garments, colors, cut and details. Ignore the clothing photograph's person and location. Do not mix outfits."
-                if has_outfit else "Keep the original dancer's clothing from <Video 1>, even when replacing the character or background.")
-    if transition:
-        clothing = ("Begin wearing the complete opening outfit from <Picture 4>. While continuing the source choreography, "
-                    f"transform the garments once into the complete outfit from <Picture 3> between 0.000 and {(transition['keep_frames'] - 1) / FPS:.3f} seconds. "
-                    "Finish in the new outfit and retain it through the remaining context. A continuous fully clothed fashion transformation, "
-                    "no alternating outfits, no repeated transformation, no body or face morph. The anchored endpoint images define the exact poses and outfits.")
-    summary = ("[video editing + reference generation] Edit <Video 1>. Preserve its original choreography and timing. "
-               "Change only the explicitly selected clothing, character or background.")
-    retention = ("Preserve the frame-by-frame dance sequence, foot contacts, body position, movement direction, camera trajectory and shot timing. "
-                 "Identity and scene remain preserved unless a replacement is explicitly selected.")
-    motion = ("Follow <Video 1> in its exact temporal order: matching dance poses, gestures, footwork, movement direction, speed and camera motion. "
-              "Start with its opening pose and finish with its final pose. Do not invent a different dance or restart the choreography.")
-    if reference_scene:
-        summary = ("[reference generation] Animate the person in <Picture 1> dancing in that picture's own scene, "
-               "wearing the supplied clothes and following the choreography, facial performance and timing of <Video 1>.")
-        character = ("Preserve the person in <Picture 1>: the same facial identity, hair, skin tone and body proportions, with expressions animated from <Video 1>. "
-                     "Replace only their clothing using the outfit reference. Ignore every other reference person's identity.")
-        background = ("<Picture 1> and <Picture 2> are the same character-and-scene photograph. Preserve its environment, "
-                      "background objects, layout, lighting, viewpoint and camera composition throughout the dance. "
-                      "Animate the existing person; do not leave a second static copy in the background. Keep the camera fixed.")
-        retention = ("The photograph controls identity, scene and framing. The clothing image controls garments only. "
-                     "<Video 1> controls body choreography, facial expressions, gaze, blinking, mouth movement, head movement and their timing; "
-                     "ignore its dancer's facial identity, hair, skin tone, body proportions, clothes, location, camera movement and cuts. "
-                     "Any black padding in the motion reference is preprocessing, not part of the target scene.")
-        motion = ("Follow <Video 1> in its exact temporal order: matching dance poses, gestures, footwork, movement direction and speed. "
-                  "Transfer the movements into the photographed scene while maintaining the photograph's viewpoint. "
-                  "Start with the reference dance's opening pose and finish with its final pose. Do not restart or invent a different dance.")
-    if photo_outfit:
-        summary = ("[reference generation] Animate the dressed person in <Picture 1> in that photograph's own scene. "
-                   "Retain the clothes they already wear and follow only the dance and facial performance of <Video 1>.")
-        character = ("Preserve the photographed person's facial identity, hair, skin tone and body proportions. "
-                     "Animate expressions and head movement from <Video 1> without copying its dancer's identity.")
-        clothing = ("<Picture 1>, <Picture 2> and <Picture 3> are the same photograph. Keep the complete outfit "
-                    "already worn by this person, including garment shapes, colors, patterns, shoes and accessories, "
-                    "from first to last frame and across every section. No clothing changes or transformations. "
-                    "Ignore all clothing in <Video 1>.")
-        retention = ("The photograph controls character identity, existing outfit, background, lighting and framing. "
-                     "<Video 1> controls body choreography, facial expressions, gaze, blinking, mouth movement, head movement and their timing. "
-                     "Ignore the video's dancer identity, clothing, scene, camera movement and cuts. "
-                     "Any black padding in the motion reference is preprocessing, not part of the target scene.")
-    text = ["subject_definitions:", *[f"{r.tag} defines {r.role}." for r in refs],
-            "summary:\n" + summary, "retention_analysis:\n" + retention, "detailed_description:"]
-    text += [character, background, clothing,
-             motion,
-             facial_motion_prompt("<Picture 1>"),
-             "Maintain the same selected character and scene throughout. One continuous shot in this section, coherent hands and limbs, full-body framing, no extra people, labels or clothing-photo backgrounds."]
-    if images[-1].role.startswith("appearance continuity"):
-        text.append(f"Use {images[-1].tag} only to maintain the generated character's appearance and scene across the cut. The current outfit reference overrides its old clothes; <Video 1> overrides its pose, facial expression, gaze and mouth movement at the current timestamp.")
-    text.append("Generate synchronized audio following <Audio 1>." if paired_audio else "Generate suitable synchronized dance music.")
-    # Validate references without adding the generic single-outfit prompt rules.
-    PromptBuilder.build(prompt, refs)
-    text.append(prompt.strip())
-    return "\n\n".join(text), refs
+if __name__ == "__main__":
+    raise SystemExit(main())

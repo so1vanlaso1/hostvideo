@@ -113,6 +113,7 @@ def parse_anchor_manifest(value, total_frames, outfit_count):
 
 class H3DanceWorkflow:
     REFERENCE_SCENE = False
+    PHOTO_OUTFIT = False
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -232,6 +233,7 @@ class H3DanceWorkflow:
         report = {"job_id": job_id, "status": "planned", "reference_video": str(source),
                   "character_image": character, "background_image": background, "outfit_images": outfits,
                   "reference_scene": self.REFERENCE_SCENE,
+                  "photo_outfit": self.PHOTO_OUTFIT,
                   "frame_count": total_frames, "duration": total_frames / FPS, "width": width, "height": height,
                   "source_start_seconds": start_seconds, "seed": seed, "steps": steps, "turbo": turbo,
                   "profile": profile, "audio_mode": "source" if paired and audio_mode == "source" else "generated",
@@ -260,7 +262,7 @@ class H3DanceWorkflow:
                                       previous_frame, str(input_path(section["from_outfit_image"])) if section.get("from_outfit_image") else None)
             effective_prompt, mapping = dance_prompt(prompt, refs, paired, bool(character), bool(background), bool(outfits), reference,
                                                       transition=section if section["kind"] == "transition" else None,
-                                                      reference_scene=self.REFERENCE_SCENE)
+                                                      reference_scene=self.REFERENCE_SCENE, photo_outfit=self.PHOTO_OUTFIT)
             # Preprocess selected references once; the continuity frame is produced
             # later by the preceding section and loaded only after its gate.
             image_paths = []
@@ -415,6 +417,31 @@ class H3SceneDanceSingleOutfit(H3SceneDanceMultipleOutfits):
     def expand(self, reference_image, reference_video, outfit_image, **settings):
         return super().expand(reference_image, reference_video, json.dumps([outfit_image]),
                               outfit_durations="[]", transition_seconds=0, **settings)
+
+
+class H3PhotoDance(H3SceneDanceSingleOutfit):
+    """Animate a dressed character in their photographed scene using dance motion."""
+    PHOTO_OUTFIT = True
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        schema = super().INPUT_TYPES()
+        schema["required"].pop("outfit_image")
+        schema["required"]["reference_image"][1]["tooltip"] = (
+            "Full-body photo defining the character, their existing clothes, background, lighting and viewpoint. "
+            "The dance video supplies motion and expressions only.")
+        schema["required"]["prompt"][1]["default"] = (
+            "Animate the photographed character dancing in their own scene. Preserve their existing outfit "
+            "throughout. Follow the sample video's dance and expressions.")
+        return schema
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, reference_image, reference_video):
+        return super().VALIDATE_INPUTS(reference_image, reference_video, reference_image)
+
+    def expand(self, reference_image, reference_video, **settings):
+        # One photo supplies all three fixed appearance roles in every section.
+        return super().expand(reference_image, reference_video, reference_image, **settings)
 
 
 class H3DanceBeginSection:
@@ -675,5 +702,5 @@ class H3DanceResume:
 
 
 NODE_CLASS_MAPPINGS = {cls.__name__: cls for cls in (
-    H3DanceWorkflow, H3SceneDanceSingleOutfit, H3SceneDanceMultipleOutfits,
+    H3DanceWorkflow, H3PhotoDance, H3SceneDanceSingleOutfit, H3SceneDanceMultipleOutfits,
     H3DanceBeginSection, H3DanceLoadImage, H3DanceExtractGuide, H3DanceSaveAnchors, H3DanceSaveSection, H3DanceAssemble, H3DanceResume)}

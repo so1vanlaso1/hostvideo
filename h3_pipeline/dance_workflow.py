@@ -158,7 +158,7 @@ def section_references(anchor, character, background, outfit, previous_frame=Non
 
 
 def dance_prompt(prompt, images, paired_audio, replace_character, replace_background, has_outfit, reference_video="reference.mp4", transition=None,
-                 reference_scene=False):
+                 reference_scene=False, photo_outfit=False):
     refs = list(images)
     if paired_audio:
         refs.append(Reference("<Audio 1>", "source dance soundtrack paired with <Video 1>", str(reference_video)))
@@ -195,6 +195,19 @@ def dance_prompt(prompt, images, paired_audio, replace_character, replace_backgr
         motion = ("Follow <Video 1> in its exact temporal order: matching dance poses, gestures, footwork, movement direction and speed. "
                   "Transfer the movements into the photographed scene while maintaining the photograph's viewpoint. "
                   "Start with the reference dance's opening pose and finish with its final pose. Do not restart or invent a different dance.")
+    if photo_outfit:
+        summary = ("[reference generation] Animate the dressed person in <Picture 1> in that photograph's own scene. "
+                   "Retain the clothes they already wear and follow only the dance and facial performance of <Video 1>.")
+        character = ("Preserve the photographed person's facial identity, hair, skin tone and body proportions. "
+                     "Animate expressions and head movement from <Video 1> without copying its dancer's identity.")
+        clothing = ("<Picture 1>, <Picture 2> and <Picture 3> are the same photograph. Keep the complete outfit "
+                    "already worn by this person, including garment shapes, colors, patterns, shoes and accessories, "
+                    "from first to last frame and across every section. No clothing changes or transformations. "
+                    "Ignore all clothing in <Video 1>.")
+        retention = ("The photograph controls character identity, existing outfit, background, lighting and framing. "
+                     "<Video 1> controls body choreography, facial expressions, gaze, blinking, mouth movement, head movement and their timing. "
+                     "Ignore the video's dancer identity, clothing, scene, camera movement and cuts. "
+                     "Any black padding in the motion reference is preprocessing, not part of the target scene.")
     text = ["subject_definitions:", *[f"{r.tag} defines {r.role}." for r in refs],
             "summary:\n" + summary, "retention_analysis:\n" + retention, "detailed_description:"]
     text += [character, background, clothing,
